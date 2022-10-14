@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;
 
 (define all-roles
-  (term (student teacher edu-admin)))
+  (term (student teacher SAC)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data to replicate ;;
@@ -61,7 +61,7 @@
          ("charlie" teacher   "stored-charlie" ((own-courses := ((0 := 'c1) (1 := 'c2)))))
          ("dan"     student   "stored-dan"     ((student-id := 99993)))
          ("erin"    student   "stored-erin"    ((student-id := 99994)))
-         ("frank"   edu-admin "stored-frank"   ()))))
+         ("frank"   SAC       "stored-frank"   ()))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -73,7 +73,7 @@
 (define priv3 (term (ALLOW student READ OF (courses * registrations (= student-id) *))))
 (define priv4 (term (ALLOW teacher WRITE OF (courses (∈ own-courses) registrations * first-session-score))))
 (define priv5 (term (ALLOW teacher WRITE OF (courses (∈ own-courses) registrations * second-session-score))))
-(define priv6 (term (ALLOW edu-admin WRITE OF (courses * registrations * credits-acquired?))))
-(define priv7 (term (ALLOW edu-admin READ OF (courses * registrations * first-session-score))))
-(define priv8 (term (ALLOW edu-admin READ OF (courses * registrations * second-session-score))))
+(define priv6 (term (ALLOW SAC WRITE OF (courses * registrations * credits-acquired?))))
+(define priv7 (term (ALLOW SAC READ OF (courses * registrations * first-session-score))))
+(define priv8 (term (ALLOW SAC READ OF (courses * registrations * second-session-score))))
 (define all-privileges (term (,priv1 ,priv2 ,priv3 ,priv4 ,priv5 ,priv6 ,priv7 ,priv8)))

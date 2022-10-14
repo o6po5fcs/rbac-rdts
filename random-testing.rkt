@@ -161,22 +161,20 @@
 
 
 
-; transform a glob into a privilege term in CommonLang
+
 (define (glob->privilege glob role permission)
   (term (ALLOW ,role ,permission OF ,glob)))
 
-; transform a list of globs into a list of valid list of privileges
 (define (globs->privileges role globs permission)
   (map (lambda (glob) (glob->privilege glob role permission))
        globs))
 
-; given an object, a list of privileges, and a user environment, use LeaderLang to create a projection of the object according to the given list of privileges
 (define (project-object object privileges user-environment)
   (term (readable-projection ,object ,privileges ,object ,user-environment ())))
 
 (define generate-role gensym)
 
-; generate a list of nonsense object paths of a particular depth
+
 (define (generate-nonsense-random-paths nr-of-paths #:path-depth [path-depth 4])
   (for/list ([i (in-range 0 nr-of-paths)])
     (generate-term CommonLang p path-depth)))

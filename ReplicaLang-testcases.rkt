@@ -2,7 +2,11 @@
 
 (require redex/reduction-semantics
          redex/pict)
-(require "ReplicaLang.rkt" (only-in "Common.rkt" json-write))
+(require "ReplicaLang.rkt"
+         (only-in "CommonLang.rkt" json-write))
+
+;;; This file contains tests to quickly check the basic functionality of ReplicaLang.
+;;; 
 
 
 (define (make-replica name privileges data delta)
@@ -155,7 +159,7 @@
           (make-program repl1-3 (term 110)))
 (test-->> red-replica
           (make-program repl1-3 (term (• (replica-1 ()) non-existant)))
-          (make-program repl1-3 (term (error #;"Could not read path (non-existant) into replica replica-1: path does not exist."))))
+          (make-program repl1-3 (term (error "Read forbidden"))))
 (test-->> red-replica
           (make-program repl1-3 (term (• (root replica-1) a)))
           (make-program repl1-3 (term 110)))
@@ -177,7 +181,7 @@
 
 (test-->> red-replica
           (make-program repl1-3 (term (•! (replica-2 ()) a 2100)))
-          (make-program repl1-3 (term (error #;"Write to a of (replica-2 ()) failed: privileges were ((ALLOW the-role WRITE OF (b)) (ALLOW the-role WRITE OF (c)) (ALLOW the-role WRITE OF (c cc)))."))))
+          (make-program repl1-3 (term (error "Write forbidden"))))
 
 (let* ((r2-data-modified (term (json-write ,r2-data (b) 2200)))
        (r2-modified (make-replica r2-name r2-privileges r2-data-modified (term ((! (b) 2200))))))
@@ -187,7 +191,7 @@
 
 (test-->> red-replica
           (make-program repl1-3 (term (•! (• (replica-2 ()) c) cb 2320)))
-          (make-program repl1-3 (term (error #;"Write to cb of (replica-2 (c)) failed: privileges were ((ALLOW the-role WRITE OF (b)) (ALLOW the-role WRITE OF (c)) (ALLOW the-role WRITE OF (c cc)))."))))
+          (make-program repl1-3 (term (error "Write forbidden"))))
 
 (let* ((r2-data-modified (term (json-write ,r2-data (c cc) 2330)))
        (r2-modified (make-replica r2-name r2-privileges r2-data-modified (term ((! (c cc) 2330))))))
@@ -197,11 +201,11 @@
 
 (test-->> red-replica
           (make-program repl4-4 (term (•! (• (replica-4 ()) 3) 30 5031)))
-          (make-program repl4-4 (term (error #;"Write to 30 of (replica-4 (3)) failed: privileges were ((ALLOW the-role WRITE OF (* 31)))."))))
+          (make-program repl4-4 (term (error "Write forbidden"))))
 
 (test-->> red-replica
           (make-program repl4-4 (term (•! (replica-4 (3)) 30 5031)))
-          (make-program repl4-4 (term (error #;"Write to 30 of (replica-4 (3)) failed: privileges were ((ALLOW the-role WRITE OF (* 31)))."))))
+          (make-program repl4-4 (term (error "Write forbidden"))))
 
 (let* ((r4-data-modified (term (json-write ,r4-data (3 31) 5031)))
        (r4-modified (make-replica r4-name r4-privileges r4-data-modified (term ((! (3 31) 5031))))))
@@ -217,7 +221,7 @@
 
 (test-->> red-replica
           (make-program repl4-4 (term (if #t (•! (• (replica-4 ()) 3) 30 5031) "wrong")))
-          (make-program repl4-4 (term (error #;"Write to 30 of (replica-4 (3)) failed: privileges were ((ALLOW the-role WRITE OF (* 31)))."))))
+          (make-program repl4-4 (term (error "Write forbidden"))))
 
 
 

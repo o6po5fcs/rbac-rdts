@@ -1,7 +1,7 @@
 #lang racket
 (require redex/reduction-semantics
          redex/pict
-         "Common.rkt"
+         "CommonLang.rkt"
          "primitive-operations.rkt")
 
 (provide ReplicaLang red-replica)
@@ -137,12 +137,9 @@
 
 (define-metafunction ReplicaLang-inner
   json-read : ιʳ json p_remaining p_complete -> v or (error string_explanation)
-  ;; Reached destination, found number -> return number
-  [(json-read ιʳ number () p_complete)
-   number]
-  ;; Reached destination, found boolean -> return boolean
-  [(json-read ιʳ boolean () p_complete)
-   boolean]
+  ;; Reached destination, found atom -> return atom
+  [(json-read ιʳ atom () p_complete)
+   atom]
   ;; Reached destination, found empty object -> return empty object
   [(json-read ιʳ () () p_complete)
    ()]

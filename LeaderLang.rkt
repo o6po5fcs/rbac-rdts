@@ -2,7 +2,7 @@
 
 (require redex/reduction-semantics
          redex/pict)
-(require "Common.rkt")
+(require "CommonLang.rkt")
 (require "primitive-operations.rkt")
 (provide LeaderLang
          projection-red-rel leader-request-red-rel
@@ -33,12 +33,10 @@
 
 
 
-(define SESSION-ID-COUNTER 0)
 (define-metafunction LeaderLang
-  fresh-session-id : -> ιˢ
-  [(fresh-session-id)
-   ,(begin (set! SESSION-ID-COUNTER (+ SESSION-ID-COUNTER 1))
-           (format "SESSION#~a" SESSION-ID-COUNTER))])
+  fresh-session-id : ιᵘ -> ιˢ
+  [(fresh-session-id ιᵘ)
+   ,(format "SESSION#~a" (term ιᵘ))])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -62,7 +60,7 @@
    #:domain ((user ...) (excerpt ...) d (s ...) (request ...) (result ...))
    #:codomain ((user ...) (excerpt ...) d (s ...) (request ...) (result ...))
    (--> [(user ...) (excerpt ...) d  (s_i ...) (request request_r ...) (result_r ...)]
-        [(user ...) (excerpt ...) d_projected (s_o ...) (request_r ...) (result result_r ...)]
+        [(user ...) (excerpt ...) d_projected (s_o ...) (request_r ...) (result_r ... result)]
         (where
          (d_projected (s_o ...) result)
          (handle-request (user ...) (excerpt ...) d (s_i ...) request))
@@ -83,7 +81,7 @@
    (judgment-holds (key-is-valid (user ...) ιᵘ auth-key))
    ; TODO? where d_2 contains all fields in (k_2 ...)
    ; '-> Or is that the responsibility of LeaderConfigLang, and not to be checked here?
-   (where ιˢ (fresh-session-id))
+   (where ιˢ (fresh-session-id ιᵘ))
    (clause-name "Login new session")]
   #;[(handle-request (user ...) (excerpt ...) d (s_old ...) (LOGIN ιᵘ auth-key))
    (d (s_old ...) (REJECT "Login failed"))
@@ -240,24 +238,36 @@
 (define-metafunction LeaderLang
   readable-projection : json (priv ...) d env p -> json
   [(readable-projection json_0 (priv ...) d env (k_accum ...))
-   ((k_1 := json_1′) kj_2′ ...)
+   ((k_1 := json_2) kj_3 ...)
    (where ((k_1 := json_1) kj_2 ...) json_0)
    (judgment-holds (is-readable (k_accum ... k_1) (priv ...) d env))
-   (where json_1′ (readable-projection json_1 (priv ...) d env (k_accum ... k_1)))
-   (judgment-holds (distinct json_1′ ()))
-   (where (kj_2′ ...) (readable-projection (kj_2 ...) (priv ...) d env (k_accum ...)))
+   (where json_2 (readable-projection json_1 (priv ...) d env (k_accum ... k_1)))
+   (judgment-holds (distinct json_2 ()))
+   (where (kj_3 ...) (readable-projection (kj_2 ...) (priv ...) d env (k_accum ...)))
 
    or
 
-   (kj_2′ ...)
+   (kj_3 ...)
    (where ((k_1 := json_1) kj_2 ...) json_0)
    ; Implicitly: where not (judgment-holds (is-readable (k_accum ... k_1) (priv ...) d env))
-   (where (kj_2′ ...) (readable-projection (kj_2 ...) (priv ...) d env (k_accum ...)))
+   (where (kj_3 ...) (readable-projection (kj_2 ...) (priv ...) d env (k_accum ...)))
 
    or
 
    json_0])
 
+
+(define (render-readable-projection . filepath)
+  ;(metafunction-pict-style 'left-right/vertical-side-conditions)
+  (with-compound-rewriter
+      'distinct
+    (λ (lws)
+      (define lhs (list-ref lws 2))
+      (define rhs (list-ref lws 3))
+      (list "" lhs " ≠ " rhs ""))
+    (if (empty? filepath)
+        (render-metafunction readable-projection)
+        (render-metafunction readable-projection (car filepath)))))
 
 ;; Holds iff READ or WRITE of glob or something deeper.
 ;; Reading must be forgiving since it's used for readable projection, hence uses
