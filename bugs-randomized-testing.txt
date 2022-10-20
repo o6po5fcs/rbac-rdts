@@ -1,0 +1,150 @@
+fixed bugs:
+
+2022/09/02: 
+check-metafunction: /Users/sam/VUB/Projects/secure-replication/LeaderLangRandomTesting.rkt:88
+checking (() () () () (LOGIN "MySy" "M")) raises an exception
+. . key-is-valid: no clauses matched for (key-is-valid () MySy M)
+
+Solution: key-is-valid handled only the case where the user is known.
+MINOR.1[edge case omitted in formalism; but solution trivial]
+
+
+2022/09/02:
+
+check-metafunction: /Users/sam/VUB/Projects/secure-replication/LeaderLangRandomTesting.rkt:88
+checking (() ((V := ())) () () (GET-REPLICA "cfmM")) raises an exception
+. . handle-request: no clauses matched for (handle-request () ((V := ())) () () (GET-REPLICA cfmM))
+
+Solution: handle-request did not handle the case where a user performs GET-REPLICA but the provided session did not exist.
+
+MINOR.2[edge case omitted in formalism; but problem could not exist in normal implementation]
+
+
+2022/09/06:
+A random test tries to read a key from an object that does not exist, resulting in an error
+
+obj: ((0 := nEcIz))
+all-paths: ((0))
+readable-paths: ()
+privileges: ()
+projected-obj: ()
+all-read-expressions: ((• (T ()) 0))
+all-programs: ((((T () () () ())) (• (T ()) 0)))
+checking: (((T () () () ())) (• (T ()) 0))
+. . json-read: no clauses matched for (json-read T () (0) (0))
+
+
+Solution: add language-level errors (an "error" term) to be able to reduce bad expressions to something (error)
+
+MINOR.3[edge case omitted in formalism; but solution trivial (include the error-condition in the formalism)]
+
+
+2022/09/06
+
+A random test generates an object with duplicate keys, and in the language this causes a certain pattern match of a metafunction (json-read) to return multiple results instead of 1.
+
+obj: ((#t := 1) (#t := ()))
+readable-paths: ((#t))
+nonreadable-paths: ((#t))
+random-generated-paths: (())
+privileges: ((ALLOW J READ OF (#t)))
+projected-obj: ((#t := 1) (#t := ()))
+### --- testing programs with readable paths --- ###
+checking: (((T () ((#t := 1) (#t := ())) () ())) (• (T ()) #t))
+. . json-read: clause #3 (counting from 0) matched (json-read T ((#t := 1) (#t := ())) (#t) (#t)) 2 different ways and returned 2 different results
+
+
+Solution: identical keys in an object should not be possible with correct use of the language, but we solved the problem by only considering the first occurrence.
+
+MINOR.4[edge case due to use of lists instead of sets in formalism (because of PLT Redex); but problem would not exist in normal implementation]
+
+
+
+2022/09/09
+Security bug: when a user has reading rights for a certain glob with a wildcard (e.g., (* JIvt) in the example below), then they only have reading rights for the field JIvt in any subobject of the root, but *not* all fields of the root itself. However, the projected object did actually provide all fields of the root, e.g., below (7 := 0) is a part of the projected object, and is by definition readable by clients even though it shouldn't be.
+
+### --- attempt 82 --- ###
+obj: ((7 := 0) (r := ((eFeLzqxXp := JJ) (JIvt := #t))) (#t := M))
+all-paths: ((r JIvt) (#t) (7) (r eFeLzqxXp))
+maybe-mutated-paths: ((* JIvt) (#t))
+paths-made-unreadable: ()
+user-environment: ()
+readable-paths: ((* JIvt) (#t))
+nonreadable-paths: ((7) (r eFeLzqxXp))
+user-env: ()
+privileges: '((ALLOW g523350 READ OF (* "JIvt")) (ALLOW g523350 READ OF (#t)))
+projected-obj: '((7 := 0) ("r" := (("JIvt" := #t))) (#t := M))
+### --- testing programs with readable paths --- ###
+### --- testing programs with nonreadable paths --- ###
+. . counterexample found:  '(((g523378 () ((7 := 0) ("r" := (("JIvt" := #t))) (#t := M)) () ())) (• (g523378 ()) 7)) '((((g523378 () ((7 := 0) ("r" := (("JIvt" := #t))) (#t := M)) () ())) 0))
+
+Solution: fix the bug in the projection of objects such that the offending fields are excluded.
+
+MAJOR.1[definition of what is a readable projection was wrong, giving read access to some fields based on an erroneous interpretation of a wildcard]
+
+
+2022/09/11(?)
+Randomized found a big where PLT redex objects are generated with keywords that are valid in 1 language (e.g., ReplicaLang) but not in another language (e.g., LeaderLang).
+
+Solution: keywords that are reserved in both languages are moved to CommonLang, such that only objects are generated that are valid in both ReplicaLang and LeaderLang.
+
+MINOR.5[improper definition of what is an identifier in the formalism; but simple solution (reserve keywords earlier)]
+
+2022/09/30
+
+Found a bug where the projecting of an object can be wrong (only found after thousands of tests), where the projection inserts an empty object where there shouldn't be one (empty objects are not allowed). E.g., "(1 := ())" in the code below.
+
+
+### --- attempt 1671 --- ###
+obj: '((Xj := ((IO := "") (a := #f)))
+  (0 := #f)
+  (v := #t)
+  (1 := ((1 := #f) (c := 'l) (0 := 0) (2 := 0) (T := #f)))
+  (C := #t))
+all-paths: ((C) (Xj a) (1 1) (0) (Xj IO) (1 T) (1 0) (v) (1 2) (1 c))
+maybe-mutated-paths: ((C) (Xj a) (1 (= g1614684)) (0) (Xj (= g1614685)))
+paths-made-unreadable: ((1 1))
+user-environment: ((g1614685 := 'IO))
+readable-paths: ((C) (Xj a) (1 (= g1614684)) (0) (Xj (= g1614685)))
+nonreadable-paths: ((1 1) (1 T) (1 0) (v) (1 2) (1 c))
+user-env: ((g1614685 := 'IO))
+privileges: '((ALLOW g1614731 READ OF (C))
+  (ALLOW g1614731 READ OF (Xj a))
+  (ALLOW g1614731 READ OF (1 (= g1614684)))
+  (ALLOW g1614731 READ OF (0))
+  (ALLOW g1614731 READ OF (Xj (= g1614685))))
+projected-obj: '((Xj := ((IO := "") (a := #f))) (0 := #f) (1 := ()) (C := #t))
+### --- testing programs with readable paths --- ###
+### --- testing programs with nonreadable paths --- ###
+### --- testing programs with randomly generated paths --- ###
+. . json-read: codomain test failed for (), call was (json-read g1615505 () () (1))
+
+MAJOR.2[definition of what is a readable projection was still wrong, including an empty subobject based on an erroneous interpretation of a wildcard]
+
+
+
+
+2022/10/14
+
+json-read metafunction returned a cursor when it should have returned a value, due to it being badly modified after a refactoring of the definition of values and atoms
+
+
+### --- attempt 2 --- ###
+obj: '((4 := ((0 := 1) (evG := "WOhL") (1 := "lD") (qVS := #f)))
+  (T := "bl")
+  (1 := ((0 := 'C) (B := #t) (2 := 0) (4 := #t))))
+all-paths: ((1 4) (1 2) (4 1) (1 B) (4 qVS) (4 0) (1 0) (T) (4 evG))
+globs: ((1 4) (1 2) ((∈ g467382) 1) (1 B))
+paths-made-unreadable: ()
+user-environment: ((g467382 := ((0 := 'g467388) (1 := 'g467384) (2 := 'g467390) (3 := 'g467391) (4 := 'g467383) (5 := 'g467385) (6 := 'g467387) (7 := 'g467389) (8 := 4) (9 := 'g467386))))
+readable globs: ((1 4) (1 2) ((∈ g467382) 1) (1 B))
+nonreadable-paths: ((4 qVS) (4 0) (1 0) (T) (4 evG))
+user-env: ((g467382 := ((0 := 'g467388) (1 := 'g467384) (2 := 'g467390) (3 := 'g467391) (4 := 'g467383) (5 := 'g467385) (6 := 'g467387) (7 := 'g467389) (8 := 4) (9 := 'g467386))))
+privileges: '((ALLOW g467466 READ OF (1 4))
+  (ALLOW g467466 READ OF (1 2))
+  (ALLOW g467466 READ OF ((∈ g467382) 1))
+  (ALLOW g467466 READ OF (1 B)))
+projected-obj: '((4 := ((1 := "lD"))) (1 := ((B := #t) (2 := 0) (4 := #t))))
+### --- testing programs with readable paths --- ###
+. . counterexample found:  '(((g468057 () ((4 := ((1 := "lD"))) (1 := ((B := #t) (2 := 0) (4 := #t)))) () ())) (• (g468057 (4)) 1)) '((((g468057 () ((4 := ((1 := "lD"))) (1 := ((B := #t) (2 := 0) (4 := #t)))) () ())) (g468057 (4 1))))
+
