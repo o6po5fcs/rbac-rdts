@@ -1,7 +1,7 @@
 fixed bugs:
 
 2022/09/02: 
-check-metafunction: /Users/sam/VUB/Projects/secure-replication/LeaderLangRandomTesting.rkt:88
+check-metafunction: ./secure-replication/LeaderLangRandomTesting.rkt:88
 checking (() () () () (LOGIN "MySy" "M")) raises an exception
 . . key-is-valid: no clauses matched for (key-is-valid () MySy M)
 
@@ -11,7 +11,7 @@ MINOR.1[edge case omitted in formalism; but solution trivial]
 
 2022/09/02:
 
-check-metafunction: /Users/sam/VUB/Projects/secure-replication/LeaderLangRandomTesting.rkt:88
+check-metafunction: ./secure-replication/LeaderLangRandomTesting.rkt:88
 checking (() ((V := ())) () () (GET-REPLICA "cfmM")) raises an exception
 . . handle-request: no clauses matched for (handle-request () ((V := ())) () () (GET-REPLICA cfmM))
 
