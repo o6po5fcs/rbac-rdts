@@ -64,7 +64,7 @@
         (where
          (d_projected (s_o ...) result)
          (handle-request (user ...) (excerpt ...) d (s_i ...) request))
-        "FIXME")))
+        "Requests-to-results")))
 
    
 ;; Handle individual request
@@ -123,7 +123,6 @@
   [(handle-request (user ...) (excerpt ...) d (s ...) request)
    (d (s ...) (REJECT))
    (clause-name "Reject request")])
-(metafunction->pict handle-request)
 #;(render-reduction-relation-rules
    '("Get replica snapshot"
      "Δ from clent"
@@ -131,6 +130,9 @@
 
 (define (render-handle-request . filepath)
   (metafunction-pict-style 'up-down/vertical-side-conditions)
+  (metafunction-up/down-indent 45)
+  (metafunction-rule-gap-space 10)
+  ;(metafunction-line-gap-space 2)
   (with-compound-rewriter
       'element-of
     (λ (lws)
@@ -146,6 +148,7 @@
       (if (empty? filepath)
           (render-metafunction handle-request)
           (render-metafunction handle-request (car filepath))))))
+(render-handle-request)
 
 (define-metafunction LeaderLang
   excerpt-for-role : role (priv ...) -> (priv ...)
@@ -172,6 +175,8 @@
 
 (define (render-excerpt-for-role . filepath)
   (metafunction-pict-style 'left-right/vertical-side-conditions)
+  (metafunction-up/down-indent 0)
+  (metafunction-rule-gap-space 10)
   (with-compound-rewriter
       'distinct
     (λ (lws)
@@ -181,6 +186,7 @@
     (if (empty? filepath)
         (render-metafunction excerpt-for-role)
         (render-metafunction excerpt-for-role (car filepath)))))
+(render-excerpt-for-role)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -228,9 +234,9 @@
   [(actions-per-session () (user ...) (excerpt ...) d δ)
    ()])
 ;(metafunction->pict actions-per-session)
-(metafunction-pict-style 'up-down/vertical-side-conditions)
-(require pict)
-(scale (metafunction->pict actions-per-session) 1.25)
+;(metafunction-pict-style 'up-down/vertical-side-conditions)
+;(require pict)
+;(scale (metafunction->pict actions-per-session) 1.25)
 
 
 
@@ -258,7 +264,9 @@
 
 
 (define (render-readable-projection . filepath)
-  ;(metafunction-pict-style 'left-right/vertical-side-conditions)
+  (metafunction-pict-style 'up-down/vertical-side-conditions)
+  (metafunction-up/down-indent 0)
+  (metafunction-rule-gap-space 10)
   (with-compound-rewriter
       'distinct
     (λ (lws)
@@ -268,6 +276,7 @@
     (if (empty? filepath)
         (render-metafunction readable-projection)
         (render-metafunction readable-projection (car filepath)))))
+(render-readable-projection)
 
 ;; Holds iff READ or WRITE of glob or something deeper.
 ;; Reading must be forgiving since it's used for readable projection, hence uses
