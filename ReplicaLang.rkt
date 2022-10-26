@@ -55,7 +55,7 @@
    (--> ((r ...) (in-hole E (if v e_1 e_2)))
         ((r ...) (in-hole E e_1))
         "if #t"
-        (judgment-holds (distinct v #f)))
+        (judgment-holds (distinct #f v)))
    (--> ((r ...) (in-hole E (let ([x v] ...) e)))
         ((r ...) (in-hole E (substitute e [x v] ...)))
         "let")
@@ -96,6 +96,7 @@
 
 (define (render-red-replica . filepath)
   (rule-pict-style 'horizontal)
+  (reduction-relation-rule-separation 10)
   (with-compound-rewriter
       'list-without
     (λ (lws)
@@ -117,6 +118,7 @@
         (if (empty? filepath)
             (render-reduction-relation red-replica)
             (render-reduction-relation red-replica (car filepath)))))))
+(render-red-replica)
 
 (define-metafunction ReplicaLang-inner
   apply-racket-op : op v ... -> v
