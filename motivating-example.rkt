@@ -20,35 +20,29 @@
 
 (define RDT-data
   (term ((courses
-          := ((c1 := ((name := "Structuur 1")
+          := ((c1 := ((name := "Structure of Computer Programs 1")
                       (credits := 6)
                       (registrations :=
                                      ((99991 :=
-                                             ((first-session-score := #f)
-                                              (second-session-score := #f)
+                                             ((grade := #f)
                                               (credits-acquired? := #f)))
                                       (99992 :=
-                                             ((first-session-score := #f)
-                                              (second-session-score := #f)
+                                             ((grade := #f)
                                               (credits-acquired? := #f)))
                                       (99993 :=
-                                             ((first-session-score := #f)
-                                              (second-session-score := #f)
+                                             ((grade := #f)
                                               (credits-acquired? := #f)))))))
-              (c2 := ((name := "Algo & Data 1")
+              (c2 := ((name := "Algorithms and Datastructures 1")
                       (credits := 6)
                       (registrations :=
                                      ((99991 :=
-                                             ((first-session-score := #f)
-                                              (second-session-score := #f)
+                                             ((grade := #f)
                                               (credits-acquired? := #f)))
                                       (99992 :=
-                                             ((first-session-score := #f)
-                                              (second-session-score := #f)
+                                             ((grade := #f)
                                               (credits-acquired? := #f)))
                                       (99994 :=
-                                             ((first-session-score := #f)
-                                              (second-session-score := #f)
+                                             ((grade := #f)
                                               (credits-acquired? := #f))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -70,10 +64,8 @@
 
 (define priv1 (term (ALLOW * READ OF (courses * name))))
 (define priv2 (term (ALLOW * READ OF (courses * credits)))) 
-(define priv3 (term (ALLOW student READ OF (courses * registrations (= student-id) *))))
-(define priv4 (term (ALLOW teacher WRITE OF (courses (∈ own-courses) registrations * first-session-score))))
-(define priv5 (term (ALLOW teacher WRITE OF (courses (∈ own-courses) registrations * second-session-score))))
+(define priv3 (term (ALLOW student READ OF  (courses * registrations (= student-id) *))))
+(define priv4 (term (ALLOW teacher WRITE OF (courses (∈ own-courses) registrations * grade))))
+(define priv5 (term (ALLOW SAC READ OF  (courses * registrations * *))))
 (define priv6 (term (ALLOW SAC WRITE OF (courses * registrations * credits-acquired?))))
-(define priv7 (term (ALLOW SAC READ OF (courses * registrations * first-session-score))))
-(define priv8 (term (ALLOW SAC READ OF (courses * registrations * second-session-score))))
-(define all-privileges (term (,priv1 ,priv2 ,priv3 ,priv4 ,priv5 ,priv6 ,priv7 ,priv8)))
+(define all-privileges (term (,priv1 ,priv2 ,priv3 ,priv4 ,priv5 ,priv6)))

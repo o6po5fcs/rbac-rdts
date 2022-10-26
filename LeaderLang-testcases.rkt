@@ -35,7 +35,7 @@
 ;;;;;;;;;;;;;;;;;;;
 
 (define example-δ
-  (term (! (courses c1 registrations 99991 first-session-score) 20)))
+  (term (! (courses c1 registrations 99991 grade) 20)))
 
 (redex-match? LeaderLang (user ...) user-config)
 (redex-match? LeaderLang (excerpt ...) privs-for-role)
@@ -105,25 +105,23 @@
              :=
              ((c1
                :=
-               ((name := "Structuur 1")
+               ((name := "Structure of Computer Programs 1")
                 (credits := 6)
                 (registrations
                  :=
                  ((99991
                    :=
-                   ((first-session-score := #f)
-                    (second-session-score := #f)
+                   ((grade := #f)
                     (credits-acquired? := #f)))))))
               (c2
                :=
-               ((name := "Algo & Data 1")
+               ((name := "Algorithms and Datastructures 1")
                 (credits := 6)
                 (registrations
                  :=
                  ((99991
                    :=
-                   ((first-session-score := #f)
-                    (second-session-score := #f)
+                   ((grade := #f)
                     (credits-acquired? := #f))))))))))
            ((student-id := 99991))))))))
 
@@ -142,44 +140,27 @@
              teacher
              WRITE
              OF
-             (courses (∈ own-courses) registrations * first-session-score))
-            (ALLOW
-             teacher
-             WRITE
-             OF
-             (courses (∈ own-courses) registrations * second-session-score)))
+             (courses (∈ own-courses) registrations * grade)))
            ((courses
              :=
              ((c1
                :=
-               ((name := "Structuur 1")
+               ((name := "Structure of Computer Programs 1")
                 (credits := 6)
                 (registrations
                  :=
-                 ((99991
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99992
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99993
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))))))
+                 ((99991 := ((grade := #f)))
+                  (99992 := ((grade := #f)))
+                  (99993 := ((grade := #f)))))))
               (c2
                :=
-               ((name := "Algo & Data 1")
+               ((name := "Algorithms and Datastructures 1")
                 (credits := 6)
                 (registrations
                  :=
-                 ((99991
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99992
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99994
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f))))))))))
+                 ((99991 := ((grade := #f)))
+                  (99992 := ((grade := #f)))
+                  (99994 := ((grade := #f))))))))))
            ((own-courses := ((0 := 'c1) (1 := 'c2))))))))))
 
 ; Push illegal writes (student cannot write grades)
@@ -199,25 +180,23 @@
              :=
              ((c1
                :=
-               ((name := "Structuur 1")
+               ((name := "Structure of Computer Programs 1")
                 (credits := 6)
                 (registrations
                  :=
                  ((99991
                    :=
-                   ((first-session-score := #f)
-                    (second-session-score := #f)
+                   ((grade := #f)
                     (credits-acquired? := #f)))))))
               (c2
                :=
-               ((name := "Algo & Data 1")
+               ((name := "Algorithms and Datastructures 1")
                 (credits := 6)
                 (registrations
                  :=
                  ((99991
                    :=
-                   ((first-session-score := #f)
-                    (second-session-score := #f)
+                   ((grade := #f)
                     (credits-acquired? := #f))))))))))
            ((student-id := 99991)))))
         (REJECT))))
@@ -251,80 +230,60 @@
              teacher
              WRITE
              OF
-             (courses (∈ own-courses) registrations * first-session-score))
-            (ALLOW
-             teacher
-             WRITE
-             OF
-             (courses (∈ own-courses) registrations * second-session-score)))
+             (courses (∈ own-courses) registrations * grade)))
            ((courses
              :=
              ((c1
                :=
-               ((name := "Structuur 1")
+               ((name := "Structure of Computer Programs 1")
                 (credits := 6)
                 (registrations
                  :=
-                 ((99991
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99992
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99993
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))))))
+                 ((99991 := ((grade := #f)))
+                  (99992 := ((grade := #f)))
+                  (99993 := ((grade := #f)))))))
               (c2
                :=
-               ((name := "Algo & Data 1")
+               ((name := "Algorithms and Datastructures 1")
                 (credits := 6)
                 (registrations
                  :=
-                 ((99991
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99992
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f)))
-                  (99994
-                   :=
-                   ((first-session-score := #f) (second-session-score := #f))))))))))
+                 ((99991 := ((grade := #f)))
+                  (99992 := ((grade := #f)))
+                  (99994 := ((grade := #f))))))))))
            ((own-courses := ((0 := 'c1) (1 := 'c2)))))))
         (ACCEPT
          ((PUSH-Δ
            "SESSION#frank"
-           (! (courses c1 registrations 99991 first-session-score) 20))
+           (! (courses c1 registrations 99991 grade) 20))
           (PUSH-Δ
            "SESSION#alice"
-           (! (courses c1 registrations 99991 first-session-score) 20))))))
+           (! (courses c1 registrations 99991 grade) 20))))))
  (term ((courses
-         := ((c1 := ((name := "Structuur 1")
+         := ((c1 := ((name := "Structure of Computer Programs 1")
                      (credits := 6)
                      (registrations :=
                                     ((99991 :=
-                                            ((first-session-score := 20)
-                                             (second-session-score := #f)
+                                            ((grade := 20)
                                              (credits-acquired? := #f)))
                                      (99992 :=
-                                            ((first-session-score := #f)
-                                             (second-session-score := #f)
+                                            ((grade := #f)
                                              (credits-acquired? := #f)))
                                      (99993 :=
-                                            ((first-session-score := #f)
-                                             (second-session-score := #f)
+                                            ((grade := #f)
                                              (credits-acquired? := #f)))))))
-             (c2 := ((name := "Algo & Data 1")
+             (c2 := ((name := "Algorithms and Datastructures 1")
                      (credits := 6)
                      (registrations :=
                                     ((99991 :=
-                                            ((first-session-score := #f)
-                                             (second-session-score := #f)
+                                            ((grade := #f)
                                              (credits-acquired? := #f)))
                                      (99992 :=
-                                            ((first-session-score := #f)
-                                             (second-session-score := #f)
+                                            ((grade := #f)
                                              (credits-acquired? := #f)))
                                      (99994 :=
-                                            ((first-session-score := #f)
-                                             (second-session-score := #f)
+                                            ((grade := #f)
                                              (credits-acquired? := #f))))))))))))
+
+
+(test-results)
