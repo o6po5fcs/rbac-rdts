@@ -1,4 +1,4 @@
-# Role-Based Access Control for JSON Replicated Data Types (Artifact)
+# Secure RDTs: Enforcing Access Control Policies for JSON Replicated Data Types (Artifact)
 
 ## Overview
 

@@ -55,7 +55,7 @@
    (--> ((r ...) (in-hole E (if v e_1 e_2)))
         ((r ...) (in-hole E e_1))
         "if #t"
-        (judgment-holds (distinct #f v)))
+        (judgment-holds (distinct v #f)))
    (--> ((r ...) (in-hole E (let ([x v] ...) e)))
         ((r ...) (in-hole E (substitute e [x v] ...)))
         "let")
