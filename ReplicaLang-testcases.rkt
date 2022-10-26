@@ -231,8 +231,7 @@
                             ((c1 := ((name := "Structure of Computer Programs 1")
                                      (credits := 6)
                                      (registrations :=
-                                                    ((100781 := ((first-session-score := 11) 
-                                                                 (second-session-score := #f)
+                                                    ((100781 := ((grade := 11) 
                                                                  (credits-acquired? := #f))))))))))))
        (rdt-data-modified (term (json-write ,rdt-data (courses c1 registrations 100781 credits-acquired?) #t)))
        (rdt-delta (term ((! (courses c1 registrations 100781 credits-acquired?) #t))))
@@ -241,10 +240,10 @@
        (replica (term (,(make-replica replica-name privs rdt-data r*-empty-delta))))
        (replica-modified (term (,(make-replica replica-name privs rdt-data-modified rdt-delta)))))
   (test-->> red-replica
-            (make-program replica (term (let ((c (root curriculum)))
-                                          (let ((r (• (• (• (• c courses) c1) registrations) 100781)))
-                                            (if (> (• r first-session-score) 9)
-                                                (•! r credits-acquired? #t)
+            (make-program replica (term (let ((cr (root curriculum)))
+                                          (let ((regs (• (• (• (• cr courses) c1) registrations) 100781)))
+                                            (if (> (• regs grade) 9.5)
+                                                (•! regs credits-acquired? #t)
                                                 #f)))))
                                             
             (make-program replica-modified (term #t))))
