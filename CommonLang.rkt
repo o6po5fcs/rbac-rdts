@@ -2,7 +2,12 @@
 
 (require redex/reduction-semantics
          redex/pict)
-(provide CommonLang json-write data-to-paths data-to-keys element-of distinct list-without save-as #;dict-lookup)
+(provide CommonLang
+         json-write
+         matches-in-env is-writable
+         data-to-paths data-to-keys
+         element-of distinct list-without
+         save-as)
 
 ;; Common language elements shared between leader and replicas
 (define-language CommonLang
@@ -48,6 +53,88 @@
   )
 
 
+
+(define-metafunction CommonLang
+  json-write : json p atom -> json or (error string_explanation)
+  [(json-write atom_old () atom_new)
+   atom_new]
+  [(json-write atom_old () d_new)
+   (error "Write forbidden"#;,(format
+           "Writing ~s to data structure currently containing ~s would change schema."
+           (term d_new)
+           (term atom_old)))]
+  [(json-write d_old () atom_new)
+   (error "Write forbidden"#;,(format
+           "Writing ~s to data structure currently containing ~s would change schema."
+           (term atom_new)
+           (term d_old)))]
+  [(json-write ((k_1 := json_1) ...
+                (k_2 := json_2)
+                (k_3 := json_3) ...)
+               (k_2 k_4 ...)
+               atom_new)
+   ((k_1 := json_1) ...
+    (k_2 := json_new)
+    (k_3 := json_3) ...)
+   (where json_new (json-write json_2 (k_4 ...) atom_new))]
+  [(json-write ((k_1 := json_1) ...
+                (k_2 := json_2)
+                (k_3 := json_3) ...)
+               (k_2 k_4 ...)
+               atom_new)
+   (error "Write forbidden")])
+
+
+;; Holds iff WRITE of glob itself.
+;; Writing has to be strict, hence uses `matches-in-env`.
+(define-judgment-form
+  CommonLang
+  #:mode     (is-writable I I I)
+  #:contract (is-writable p (priv ...) env)
+
+  [(matches-in-env g p env)
+   --------------------
+   (is-writable p (priv_l ... (ALLOW p-role WRITE OF g) priv_r ...) env)])
+;(judgment-form->pict is-writable)
+
+(define-judgment-form
+  CommonLang
+  #:mode     (matches-in-env I I I)
+  #:contract (matches-in-env g p d)
+
+  [(matches-in-env (g-segment_2 ...) (k_2 ...) env)
+   -------------------- "Match * wildcard"
+   (matches-in-env (* g-segment_2 ...) (k_1 k_2 ...) env)]
+
+  [(matches-in-env (g-segment_2 ...) (k_2 ...) env)
+   -------------------- "Match identical key"
+   (matches-in-env (k_1 g-segment_2 ...) (k_1 k_2 ...) env)]
+
+  [(matches-in-env (g-segment_2 ...) (k_5 ...) env)
+   (where (kj_3 ... (k_1 := atom_2) kj_4 ...) env)
+   -------------------- "Match = wildcard atom"
+   (matches-in-env ((= k_1) g-segment_2 ...) (atom_2 k_5 ...) env)]
+
+  [(matches-in-env (g-segment_2 ...) (k_5 ...) env)
+   (where (kj_3 ... (k_1 := (quote i_2)) kj_4 ...) env)
+   -------------------- "Match = wildcard identifier"
+   (matches-in-env ((= k_1) g-segment_2 ...) (i_2 k_5 ...) env)]
+
+  [(matches-in-env (g-segment_2 ...) (k_8 ...) env)
+   (where (kj_3 ... (k_1 := (kj_5 ... (k_6 := atom_2) kj_7 ...)) kj_4 ...) env)
+   -------------------- "Match ∈ wildcard atom"
+   (matches-in-env ((∈ k_1) g-segment_2 ...) (atom_2 k_8 ...) env)]
+
+  [(matches-in-env (g-segment_2 ...) (k_8 ...) env)
+   (where (kj_3 ... (k_1 := (kj_5 ... (k_6 := (quote i_2)) kj_7 ...)) kj_4 ...) env)
+   -------------------- "Match ∈ wildcard identifier"
+   (matches-in-env ((∈ k_1) g-segment_2 ...) (i_2 k_8 ...) env)]
+
+  [-------------------- "Empty paths"
+   (matches-in-env () () env)])
+;(judgment-form->pict matches-in-env)
+
+
 ;; Metafunctions for reduction relations on CommonLang
 (define-metafunction CommonLang
   data-to-paths : d -> (p ...)
@@ -83,30 +170,6 @@
    ((k ...))]
   [(json-to-keys d (k ...))
    (data-to-keys d (k ...))])
-
-
-(define-metafunction CommonLang
-  json-write : json p atom -> json
-  [(json-write atom_old () atom_new)
-   atom_new]
-  [(json-write atom_old () d_new)
-   ,(error 'json-write
-           "Writing ~s to data structure currently containing ~s would change schema."
-           (term d_new)
-           (term atom_old))]
-  [(json-write d_old () atom_new)
-   ,(error 'json-write
-           "Writing ~s to data structure currently containing ~s would change schema."
-           (term atom_new)
-           (term d_old))]
-  [(json-write ((k_1 := json_1) ...
-                (k_2 := json_2)
-                (k_3 := json_3) ...)
-               (k_2 k_4 ...)
-               atom)
-   ((k_1 := json_1) ...
-    (k_2 := (json-write json_2 (k_4 ...) atom))
-    (k_3 := json_3) ...)])
 
 (define-judgment-form
   CommonLang

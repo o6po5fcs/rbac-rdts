@@ -6,7 +6,7 @@
 (require "primitive-operations.rkt")
 (provide LeaderLang
          projection-red-rel leader-request-red-rel
-         handle-request readable-projection matches-in-env is-writable can-match
+         handle-request readable-projection
          excerpt-for-role actions-per-session)
 
 ;; Language describing how the leader interacts
@@ -302,17 +302,7 @@
    (is-readable p (priv_l ... (ALLOW p-role r/w OF g) priv_r ...) d env)])
 ;(judgment-form->pict is-readable)
 
-;; Holds iff WRITE of glob itself.
-;; Writing has to be strict, hence uses `matches-in-env`.
-(define-judgment-form
-  LeaderLang
-  #:mode     (is-writable I I I)
-  #:contract (is-writable p (priv ...) env)
 
-  [(matches-in-env g p env)
-   --------------------
-   (is-writable p (priv_l ... (ALLOW p-role WRITE OF g) priv_r ...) env)])
-;(judgment-form->pict is-writable)
 
 (define-judgment-form
   LeaderLang
@@ -338,43 +328,6 @@
   [-------------------- "Empty paths"
    (can-match () ())])
 ;(judgment-form->pict can-match)
-
-(define-judgment-form
-  LeaderLang
-  #:mode     (matches-in-env I I I)
-  #:contract (matches-in-env g p d)
-
-  [(matches-in-env (g-segment_2 ...) (k_2 ...) env)
-   -------------------- "Match * wildcard"
-   (matches-in-env (* g-segment_2 ...) (k_1 k_2 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_2 ...) env)
-   -------------------- "Match identical key"
-   (matches-in-env (k_1 g-segment_2 ...) (k_1 k_2 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_5 ...) env)
-   (where (kj_3 ... (k_1 := atom_2) kj_4 ...) env)
-   -------------------- "Match = wildcard atom"
-   (matches-in-env ((= k_1) g-segment_2 ...) (atom_2 k_5 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_5 ...) env)
-   (where (kj_3 ... (k_1 := (quote i_2)) kj_4 ...) env)
-   -------------------- "Match = wildcard identifier"
-   (matches-in-env ((= k_1) g-segment_2 ...) (i_2 k_5 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_8 ...) env)
-   (where (kj_3 ... (k_1 := (kj_5 ... (k_6 := atom_2) kj_7 ...)) kj_4 ...) env)
-   -------------------- "Match ∈ wildcard atom"
-   (matches-in-env ((∈ k_1) g-segment_2 ...) (atom_2 k_8 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_8 ...) env)
-   (where (kj_3 ... (k_1 := (kj_5 ... (k_6 := (quote i_2)) kj_7 ...)) kj_4 ...) env)
-   -------------------- "Match ∈ wildcard identifier"
-   (matches-in-env ((∈ k_1) g-segment_2 ...) (i_2 k_8 ...) env)]
-
-  [-------------------- "Empty paths"
-   (matches-in-env () () env)])
-;(judgment-form->pict matches-in-env)
 
 
 

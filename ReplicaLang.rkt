@@ -82,21 +82,25 @@
         [((ιʳ (priv ...) d_new env (δ ... (! (k_1 ... k_2) atom))) r_other ...) (in-hole E atom)]
         (judgment-holds (element-of r_c (r ...)))
         (where (ιʳ (priv ...) d env (δ ...)) r_c)
-        (judgment-holds (auths (priv ...) env (k_1 ... k_2)))
+        (judgment-holds (is-writable (k_1 ... k_2) (priv ...) env))
         (where (r_other ...) (list-without (r ...) r_c))
         (where d_new (json-write d (k_1 ... k_2) atom))
         "perform-write")
-   (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 v))]
+   (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 atom))]
         [(r ...) (error "Write forbidden"#;(,(format "Write to ~s of ~s failed: privileges were ~s."
                                  (term k_2) (term (ιʳ (k_1 ...))) (term (priv ...)))))]
         (judgment-holds (element-of (ιʳ (priv ...) d env (δ ...)) (r ...)))
-        (judgment-holds (¬auths (priv ...) env (k_1 ... k_2)))
-        "reject-write")
+        (judgment-holds (¬is-writable (k_1 ... k_2) (priv ...) env))
+        "reject-write-¬w")
+   (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 v))]
+        [(r ...) (error "Write forbidden")]
+        (judgment-holds (¬is-atom v))
+        "reject-write-¬a")
    ))
 
 (define (render-red-replica . filepath)
   (rule-pict-style 'horizontal)
-  (reduction-relation-rule-separation 10)
+  (reduction-relation-rule-separation 4)
   (with-compound-rewriter
       'list-without
     (λ (lws)
@@ -160,52 +164,23 @@
                    (term p_1)
                    (term ιʳ))))])
 
-;; Judgment forms enforcing write permissions during evaluation
+
 (define-judgment-form
-  ReplicaLang-inner
-  #:mode     (step-into I I I O)
-  #:contract (step-into g_writable-1 env k g_writable-2)
+  ReplicaLang
+  #:mode     (¬is-atom I)
+  #:contract (¬is-atom v)
 
-  [-------------------- "Step identical key"
-   (step-into (k_1 g-segment ...) env k_1 (g-segment ...))]
+  [-------------------- "Cursor"
+   (¬is-atom c)]
 
-  [-------------------- "Step * wildcard"
-   (step-into (* g-segment ...) env k_1 (g-segment ...))]
-
-  [(where (kj_l ... (k_1 := atom_2) kj_r ...) env)
-   -------------------- "Step = wildcard atom"
-   (step-into ((= k_1) g-segment ...) env atom_2 (g-segment ...))]
-
-  [(where (kj_l ... (k_1 := (quoted i_2)) kj_r ...) env)
-   -------------------- "Step = wildcard identifier"
-   (step-into ((= k_1) g-segment ...) env i_2 (g-segment ...))]
-
-  [(where (kj_ll ... (k_1 := (kj_l ... (k_any := atom_2) kj_r ...)) kj_rr ...) env)
-   -------------------- "Step ∈ wildcard atom"
-   (step-into ((∈ k_1) g-segment ...) env atom_2 (g-segment ...))]
-
-  [(where (kj_ll ... (k_1 := (kj_l ... (k_any := (quoted i_2)) kj_r ...)) kj_rr ...) env)
-   -------------------- "Step ∈ wildcard identifier"
-   (step-into ((∈ k_1) g-segment ...) env i_2 (g-segment ...))])
+  [-------------------- "Lambda"
+   (¬is-atom (λ (x ...) e))])
 
 (define-judgment-form
   ReplicaLang-inner
-  #:mode     (auths I I I)
-  #:contract (auths (priv ...) d p)
+  #:mode     (¬is-writable I I I)
+  #:contract (¬is-writable p (priv ...) d)
 
-  [-------------------- "Empty path"
-   (auths (priv_l ... (ALLOW p-role WRITE OF ()) priv_r ...) env ())]
-
-  [(step-into g_writable env k_1 g_writable′)
-   (auths ((ALLOW p-role WRITE OF g_writable′)) env (k_2 ...))
-   -------------------- "Step into path"
-   (auths (priv_l ... (ALLOW p-role WRITE OF g_writable) priv_r ...) env (k_1 k_2 ...))])
-
-(define-judgment-form
-  ReplicaLang-inner
-  #:mode     (¬auths I I I)
-  #:contract (¬auths (priv ...) d p)
-
-  [(where #f ,(term (auths (priv ...) env p)))
-   -------------------- "Step into path"
-   (¬auths (priv ...) env p)])
+  [(where #f ,(term (is-writable p (priv ...) env)))
+   -------------------- "Invert result"
+   (¬is-writable p (priv ...) env)])
