@@ -9,6 +9,9 @@ Solution: key-is-valid handled only the case where the user is known.
 MINOR.1[edge case omitted in formalism; but solution trivial]
 
 
+_____________________________________________________________________________________
+
+
 2022/09/02:
 
 check-metafunction: ./secure-replication/LeaderLangRandomTesting.rkt:88
@@ -18,6 +21,11 @@ checking (() ((V := ())) () () (GET-REPLICA "cfmM")) raises an exception
 Solution: handle-request did not handle the case where a user performs GET-REPLICA but the provided session did not exist.
 
 MINOR.2[edge case omitted in formalism; but problem could not exist in normal implementation]
+
+
+
+_____________________________________________________________________________________
+
 
 
 2022/09/06:
@@ -39,6 +47,9 @@ Solution: add language-level errors (an "error" term) to be able to reduce bad e
 MINOR.3[edge case omitted in formalism; but solution trivial (include the error-condition in the formalism)]
 
 
+_____________________________________________________________________________________
+
+
 2022/09/06
 
 A random test generates an object with duplicate keys, and in the language this causes a certain pattern match of a metafunction (json-read) to return multiple results instead of 1.
@@ -57,6 +68,9 @@ checking: (((T () ((#t := 1) (#t := ())) () ())) (• (T ()) #t))
 Solution: identical keys in an object should not be possible with correct use of the language, but we solved the problem by only considering the first occurrence.
 
 MINOR.4[edge case due to use of lists instead of sets in formalism (because of PLT Redex); but problem would not exist in normal implementation]
+
+
+_____________________________________________________________________________________
 
 
 
@@ -83,12 +97,21 @@ Solution: fix the bug in the projection of objects such that the offending field
 MAJOR.1[definition of what is a readable projection was wrong, giving read access to some fields based on an erroneous interpretation of a wildcard]
 
 
+_____________________________________________________________________________________
+
+
+
 2022/09/11(?)
 Randomized found a big where PLT redex objects are generated with keywords that are valid in 1 language (e.g., ReplicaLang) but not in another language (e.g., LeaderLang).
 
 Solution: keywords that are reserved in both languages are moved to CommonLang, such that only objects are generated that are valid in both ReplicaLang and LeaderLang.
 
 MINOR.5[improper definition of what is an identifier in the formalism; but simple solution (reserve keywords earlier)]
+
+
+_____________________________________________________________________________________
+
+
 
 2022/09/30
 
@@ -122,6 +145,9 @@ projected-obj: '((Xj := ((IO := "") (a := #f))) (0 := #f) (1 := ()) (C := #t))
 MAJOR.2[definition of what is a readable projection was still wrong, including an empty subobject based on an erroneous interpretation of a wildcard]
 
 
+_____________________________________________________________________________________
+
+
 
 
 2022/10/14
@@ -148,3 +174,248 @@ projected-obj: '((4 := ((1 := "lD"))) (1 := ((B := #t) (2 := 0) (4 := #t))))
 ### --- testing programs with readable paths --- ###
 . . counterexample found:  '(((g468057 () ((4 := ((1 := "lD"))) (1 := ((B := #t) (2 := 0) (4 := #t)))) () ())) (• (g468057 (4)) 1)) '((((g468057 () ((4 := ((1 := "lD"))) (1 := ((B := #t) (2 := 0) (4 := #t)))) () ())) (g468057 (4 1))))
 
+
+
+
+
+____________________________________________________________________________________
+From this point onwards the security policy specification language was modified
+due to a major revision of the paper. Program terms may have slightly different syntax.
+____________________________________________________________________________________
+
+2023/03/02
+
+Randomized testing identified an implementation oversight (after revising the security policy specification language) where fields that do not exist within an object, but which can be written to according to the security policy, could not be written to (the program is rejected whereas the field should be added to the object)
+
+### --- attempt 0 --- ###
+*** obj:
+'((2 := #t) (0 := #f) (7 := ""))
+*** all-paths:
+'((2) (0) (7))
+*** all-roles:
+'(* role#0 role#1)
+*** roles after adding wildcard's user env:
+'#hash((* . #<role: () () ()>)
+       (role#0 . #<role: ((7)) ((*)) ()>)
+       (role#1 . #<role: ((0)) ((*)) ()>))
+*** security-policy:
+'((ALLOW role#0 READ OF (7))
+  (ALLOW role#0 WRITE OF (*))
+  (ALLOW role#1 READ OF (0))
+  (ALLOW role#1 WRITE OF (*)))
+*** *: readable-paths:
+'()
+*** *: writable-paths:
+'()
+*** role#0: readable-paths:
+'((2) (0) (7))
+*** role#0: writable-paths:
+'((2) (0) (7) (g1174191))
+*** role#1: readable-paths:
+'((2) (0) (7))
+*** role#1: writable-paths:
+'((2) (0) (7) (g1174192))
+*** tested program: :
+'((("user-1" role#0 "user-1-password" ())
+   ("user-2" role#1 "user-2-password" ()))
+  ((role#1 ((ALLOW role#1 READ OF (0)) (ALLOW role#1 WRITE OF (*))))
+   (role#0 ((ALLOW role#0 READ OF (7)) (ALLOW role#0 WRITE OF (*)))))
+  ((2 := #t) (0 := #f) (7 := ""))
+  (("session-1" "user-1") ("session-2" "user-2"))
+  ((PUSH-Δ "session-1" (! (g1174191) 0)))
+  ())
+*** reduction results: :
+'(((("user-1" role#0 "user-1-password" ())
+    ("user-2" role#1 "user-2-password" ()))
+   ((role#1 ((ALLOW role#1 READ OF (0)) (ALLOW role#1 WRITE OF (*))))
+    (role#0 ((ALLOW role#0 READ OF (7)) (ALLOW role#0 WRITE OF (*)))))
+   ((2 := #t) (0 := #f) (7 := ""))
+   (("session-1" "user-1") ("session-2" "user-2"))
+   ()
+   ((REJECT))))
+
+counterexample found:  '((("user-1" role#0 "user-1-password" ()) ("user-2" role#1 "user-2-password" ())) ((role#1 ((ALLOW role#1 READ OF (0)) (ALLOW role#1 WRITE OF (*)))) (role#0 ((ALLOW role#0 READ OF (7)) (ALLOW role#0 WRITE OF (*))))) ((2 := #t) (0 := #f) (7 := ""))... '(((("user-1" role#0 "user-1-password" ()) ("user-2" role#1 "user-2-password" ())) ((role#1 ((ALLOW role#1 READ OF (0)) (ALLOW role#1 WRITE OF (*)))) (role#0 ((ALLOW role#0 READ OF (7)) (ALLOW role#0 WRITE OF (*))))) ((2 := #t) (0 := #f) (7 := "")...
+
+
+
+_____________________________________________________________________________________
+
+2023/03/06
+
+Randomized testing identified an error where a path was (correctly) marked as writable, but a program that tries to actually write to said path erroneously rejected the write action. The problem was related to bad/inconsistent handling of quoted symbols in paths, because symbols in the policy language do not have to be quoted, but symbols in the user environment do have to be quoted.
+
+### --- attempt 441 --- ###
+*** obj:
+'((m := ((0 := 2)))
+  (0 := "qBLSG")
+  (v := ((2 := #t)))
+  (1 := ((0 := "") (2 := #f))))
+*** all-paths:
+'((m 0) (0) (v 2) (1 0) (1 2))
+*** all-roles:
+'(* role#0 role#1 role#2 role#3 role#4 role#5 role#6)
+*** roles after adding wildcard's user env:
+'#hash((* . #<role: () () ()>)
+       (role#0 . #<role: ((m 0)) ((m 0)) ()>)
+       (role#1 . #<role: ((1 2)) ((m 0)) ()>)
+       (role#2
+        .
+        #<role:
+         ((1 2))
+         ((* (∈ (~ g2594819))))
+         ((g2594819
+           :=
+           ((0 := 'g2594826)
+            (1 := 'g2594827)
+            (2 := 'g2594828)
+            (3 := 'g2594822)
+            (4 := 'g2594821)
+            (5 := 'g2594824)
+            (6 := 0)
+            (7 := 'g2594825)
+            (8 := 'g2594823)
+            (9 := 'g2594820))))>)
+       (role#3 . #<role: ((m 0)) ((m 0)) ()>)
+       (role#4 . #<role: ((m 0)) ((1 2)) ()>)
+       (role#5 . #<role: ((1 2)) ((1 *)) ()>)
+       (role#6 . #<role: ((m 0)) (((= (~ g2594830)) 0)) ()>))
+*** security-policy:
+'((ALLOW role#2 READ OF (1 2))
+  (ALLOW role#2 WRITE OF (* (∈ (~ g2594819))))
+  (ALLOW role#6 READ OF (m 0))
+  (ALLOW role#6 WRITE OF ((= (~ g2594830)) 0))
+  (ALLOW role#3 READ OF (m 0))
+  (ALLOW role#3 WRITE OF (m 0))
+  (ALLOW role#4 READ OF (m 0))
+  (ALLOW role#4 WRITE OF (1 2))
+  (ALLOW role#5 READ OF (1 2))
+  (ALLOW role#5 WRITE OF (1 *))
+  (ALLOW role#0 READ OF (m 0))
+  (ALLOW role#0 WRITE OF (m 0))
+  (ALLOW role#1 READ OF (1 2))
+  (ALLOW role#1 WRITE OF (m 0)))
+*** role#6: readable-paths:
+'((m 0))
+*** role#6: writable-paths:
+'()
+*** role#3: readable-paths:
+'((m 0))
+*** role#3: writable-paths:
+'((m 0))
+*** role#4: readable-paths:
+'((m 0) (1 2))
+*** role#4: writable-paths:
+'((1 2))
+*** role#5: readable-paths:
+'((1 0) (1 2))
+*** role#5: writable-paths:
+'((1 0) (1 2) (1 g2594829))
+*** role#0: readable-paths:
+'((m 0))
+*** role#0: writable-paths:
+'((m 0))
+*** role#1: readable-paths:
+'((m 0) (1 2))
+*** role#1: writable-paths:
+'((m 0))
+*** *: readable-paths:
+'()
+*** *: writable-paths:
+'()
+*** role#2: readable-paths:
+'((1 2))
+*** role#2: writable-paths:
+'((g2594818 0))
+*** tested program: :
+'((("user-1" role#6 "user-1-password" ())
+   ("user-2"
+    role#2
+    "user-2-password"
+    ((g2594819
+      :=
+      ((0 := 'g2594826)
+       (1 := 'g2594827)
+       (2 := 'g2594828)
+       (3 := 'g2594822)
+       (4 := 'g2594821)
+       (5 := 'g2594824)
+       (6 := 0)
+       (7 := 'g2594825)
+       (8 := 'g2594823)
+       (9 := 'g2594820)))))
+   ("user-3" role#3 "user-3-password" ())
+   ("user-4" role#4 "user-4-password" ())
+   ("user-5" role#5 "user-5-password" ())
+   ("user-6" role#0 "user-6-password" ())
+   ("user-7" role#1 "user-7-password" ()))
+  ((role#1 ((ALLOW role#1 READ OF (1 2)) (ALLOW role#1 WRITE OF (m 0))))
+   (role#0 ((ALLOW role#0 READ OF (m 0)) (ALLOW role#0 WRITE OF (m 0))))
+   (role#5 ((ALLOW role#5 READ OF (1 2)) (ALLOW role#5 WRITE OF (1 *))))
+   (role#4 ((ALLOW role#4 READ OF (m 0)) (ALLOW role#4 WRITE OF (1 2))))
+   (role#3 ((ALLOW role#3 READ OF (m 0)) (ALLOW role#3 WRITE OF (m 0))))
+   (role#2
+    ((ALLOW role#2 READ OF (1 2))
+     (ALLOW role#2 WRITE OF (* (∈ (~ g2594819))))))
+   (role#6
+    ((ALLOW role#6 READ OF (m 0))
+     (ALLOW role#6 WRITE OF ((= (~ g2594830)) 0)))))
+  ((m := ((0 := 2)))
+   (0 := "qBLSG")
+   (v := ((2 := #t)))
+   (1 := ((0 := "") (2 := #f))))
+  (("session-1" "user-1")
+   ("session-2" "user-2")
+   ("session-3" "user-3")
+   ("session-4" "user-4")
+   ("session-5" "user-5")
+   ("session-6" "user-6")
+   ("session-7" "user-7"))
+  ((PUSH-Δ "session-2" (! (g2594818 0) 1)))
+  ())
+*** reduction results: :
+'(((("user-1" role#6 "user-1-password" ())
+    ("user-2"
+     role#2
+     "user-2-password"
+     ((g2594819
+       :=
+       ((0 := 'g2594826)
+        (1 := 'g2594827)
+        (2 := 'g2594828)
+        (3 := 'g2594822)
+        (4 := 'g2594821)
+        (5 := 'g2594824)
+        (6 := 0)
+        (7 := 'g2594825)
+        (8 := 'g2594823)
+        (9 := 'g2594820)))))
+    ("user-3" role#3 "user-3-password" ())
+    ("user-4" role#4 "user-4-password" ())
+    ("user-5" role#5 "user-5-password" ())
+    ("user-6" role#0 "user-6-password" ())
+    ("user-7" role#1 "user-7-password" ()))
+   ((role#1 ((ALLOW role#1 READ OF (1 2)) (ALLOW role#1 WRITE OF (m 0))))
+    (role#0 ((ALLOW role#0 READ OF (m 0)) (ALLOW role#0 WRITE OF (m 0))))
+    (role#5 ((ALLOW role#5 READ OF (1 2)) (ALLOW role#5 WRITE OF (1 *))))
+    (role#4 ((ALLOW role#4 READ OF (m 0)) (ALLOW role#4 WRITE OF (1 2))))
+    (role#3 ((ALLOW role#3 READ OF (m 0)) (ALLOW role#3 WRITE OF (m 0))))
+    (role#2
+     ((ALLOW role#2 READ OF (1 2))
+      (ALLOW role#2 WRITE OF (* (∈ (~ g2594819))))))
+    (role#6
+     ((ALLOW role#6 READ OF (m 0))
+      (ALLOW role#6 WRITE OF ((= (~ g2594830)) 0)))))
+   ((m := ((0 := 2)))
+    (0 := "qBLSG")
+    (v := ((2 := #t)))
+    (1 := ((0 := "") (2 := #f))))
+   (("session-1" "user-1")
+    ("session-2" "user-2")
+    ("session-3" "user-3")
+    ("session-4" "user-4")
+    ("session-5" "user-5")
+    ("session-6" "user-6")
+    ("session-7" "user-7"))
+   ()
+   ((REJECT))))
+. . counterexample found:  '((("user-1" role#6 "user-1-password" ()) ("user-2" role#2 "user-2-password" ((g2594819 := ((0 := 'g2594826) (1 := 'g2594827) (2 := 'g2594828) (3 := 'g2594822) (4 := 'g2594821) (5 := 'g2594824) (6 := 0) (7 := 'g2594825) (8 := 'g2594823) (9 := 'g25... '(((("user-1" role#6 "user-1-password" ()) ("user-2" role#2 "user-2-password" ((g2594819 := ((0 := 'g2594826) (1 := 'g2594827) (2 := 'g2594828) (3 := 'g2594822) (4 := 'g2594821) (5 := 'g2594824) (6 := 0) (7 := 'g2594825) (8 := 'g2594823) (9 := 'g2...

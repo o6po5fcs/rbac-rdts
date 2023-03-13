@@ -12,6 +12,9 @@
 ;; Utility functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;
 
+(define wildcard-role '*)
+(define wildcard-path-expression '*)
+
 (define (report name t)
   (printf "*** ~a:~n" name)
   (pretty-print t))
@@ -39,6 +42,7 @@
    (where ((k_2′ := json_2′) ...) (cleanup-data ((k_2 := json_2) ...) (k_seen ...)))])
 
 
+
 ; Remove the last element of a list
 (define (remove-last l)
   (if (empty? l)
@@ -54,27 +58,94 @@
   (define naturals (stream->list (in-range 0 (length arr-values))))
   (map (lambda (idx val) (term (,idx := ,val))) naturals arr-values))
 
-; Given a list of paths, a list of globs that represent read privileges, and a user environment needed by those globs, return the list of paths that match those globs for the given user environment.
-(define (remove-readable-paths paths globs user-env)
+(define (list-has-path? path paths)
+  (member path paths))
+
+
+; Given a list of paths, a list of path selectors that represent read privileges, and a user environment needed by those path selectors, return the list of paths that match those path selectors for the given user environment.
+(define (remove-readable-paths paths path-selectors user-env)
   (define (keep? path)
-    (define (does-not-match? path glob)
-      (not (term (matches-in-env ,glob ,path ,user-env))))
-    (andmap (curry does-not-match? path) globs))
+    (define (does-not-match? path path-selector)
+      (not (term (matches-in-env ,path-selector ,path ,user-env))))
+    (andmap (curry does-not-match? path) path-selectors))
   (filter keep? paths))
 
-; Given a list of paths, a list of globs that represent read privileges, and a user environment needed by those globs, return the list of paths that *do not* match those globs for the given user environment.
-(define (remove-non-readable-paths paths globs user-env)
+; Given a list of paths, a list of path selectors that represent read privileges, and a user environment needed by those path selectors, return the list of paths that *do not* match those path selectors for the given user environment.
+(define (remove-non-readable-paths paths path-expressions user-env)
   (define (keep? path)
-    (define (matches? path glob)
-      (term (matches-in-env ,glob ,path ,user-env)))
-    (ormap (curry matches? path) globs))
+    (define (matches? path path-expression)
+      (term (matches-in-env ,path-expression ,path ,user-env)))
+    (ormap (curry matches? path) path-expressions))
   (filter keep? paths))
 
 ; Given a list of paths, a list of privileges, and a user environment needed by those privileges, return the list of paths that are allowed to be written to according to the privileges and user environment.
-(define (keep-writable-paths paths privileges user-env)
+(define (keep-writable-paths obj paths privileges user-env)
+  ;(displayln "keep-writable-paths: ") (displayln obj) (displayln paths) (displayln privileges) (displayln user-env) (newline)
   (define (keep? path)
-    (term (is-writable ,path ,privileges ,user-env)))
+    (term (is-writable ,obj ,path ,privileges ,user-env)))
   (filter keep? paths))
+
+
+(struct union-candidate (path-prefix path-full path-expression)
+  #:methods gen:custom-write
+  [(define write-proc
+     (make-constructor-style-printer
+      (lambda (obj) 'union-candidate)
+      (lambda (obj) (list (union-candidate-path-prefix obj) (union-candidate-path-full obj) (union-candidate-path-expression obj)))))])
+
+(define (create-unions obj #:introduce-union-chance [union-chance 20])
+  (define (top-level-kvs json)
+    (if (redex-match CommonLang atom json)
+        '()
+        (map (lambda (kv) (cons (first kv) (last kv)))
+             json)))
+
+  (define (unionify-1-kv! current-path key json)
+    (define should-unionify? (< (random 0 100) union-chance))
+    (define full-old-path (append current-path (list key)))
+    (define unionified-children (unionify! full-old-path json))
+    (if should-unionify?
+        (let* ((new-key (gensym))
+               (full-new-path (append current-path (list new-key))))
+          ;(display obj) (newline) (display full-new-path) (newline) (display json) (newline)
+          (set! obj (term (json-write-compound ,obj ,full-new-path ,json)))
+          (cons (union-candidate current-path full-old-path (term [⋃ ,key ,new-key]))
+                (unionify! full-old-path json)))
+        unionified-children))
+          
+ 
+  (define (unionify! current-path current-obj)
+    (if (list? current-obj)
+        (let ((kvs-on-current-level (top-level-kvs current-obj)))
+          (define union-candidates (map (lambda (kv)
+                                                (define key (car kv))
+                                                (define json (cdr kv))
+                                                (unionify-1-kv! current-path key json))
+                                              kvs-on-current-level))
+          union-candidates)
+        '()))
+
+  (define union-candidates (flatten (unionify! '() obj)))
+  (report "union-candidates" union-candidates)
+  (values union-candidates obj))
+      
+
+(define test-data1 (term
+                    ((a := ((aa := ((aaa := 1)))
+                            (ab := 2))))))
+
+(define test-data2 (term
+                    ((team1
+                      := ((name := "The Fantastical Scouts")
+                          (sightings := ((1674813931967 :=
+                                                        ((location := ((lat := 51.06038) (lng := 4.67201)))
+                                                         (species := "Fly Agaric")
+                                                         (photo := "blob:...")
+                                                         (points := 3))))))))))
+  
+
+
+
 
 ; "mutate-paths" arguments
 ;   - paths: the list of paths to potentially mutate
@@ -83,29 +154,35 @@
 ;                                     All path segments of a path are considered and individually subject to this chance.
 ;   - #:make-unreadable-percent: the chance (in percent) that, when a mutation occurs,
 ;                                the path becomes unreadable by not including the required field in the user environment
-; "mutate-maths" return values:
-;   - globs: all paths that potentially contain wildcards
+; "mutate-paths" return values:
+;   - path-selectors: all paths that potentially contain wildcards
 ;   - user-environment: the user environment which does or does not include the necessary fields to gain access to a path
 ;   - paths-made-unreadable: list of field access paths that were made unreadable though random chance, e.g.,
-;                            because the mutation (= of ∈) did not include the necessary field in the user's env   
-(define (globbify paths #:path-segment-wildcard-chance [wildcard-chance 10] #:make-unreadable-percent [unreadable-percent 20])
+;                            because the mutation (= of ∈) did not include the necessary field in the user's env
+;   - flat-path-suggestions: a list of flat paths that didn't exist in the object, but that now exist due to
+;                            the introduction of path expressions
+(define (expressionify-paths paths union-candidates
+                             #:path-segment-wildcard-chance [wildcard-chance 10]
+                             #:make-unreadable-percent [unreadable-percent 20]
+                             #:use-union-path-chance [use-union-chance 30])
   (define paths-made-unreadable '())
+  (define flat-path-suggestions '())
   (define user-environment '())
 
-  ; turn a single field access path into a glob that potentially includes wildcards
-  ;; returns a glob, and modifies the user-environment found in scope
-  (define (path->glob path)
-    ; replace a single path segment by an "=" wildcard
+  ; turn a single path into a path selector that potentially includes various kinds of path expressions
+  ;; returns a path expression, and modifies the user-environment found in scope
+  (define (path->path-selector path)
+    ; replace a single path  by an "=" wildcard
     (define (mutate-= path-segment make-unreadable?)
       (define symbol (gensym))
-      (define replacement-path-segment (term (= ,symbol)))
+      (define replacement-path-segment (term (= [~ ,symbol])))
       (define kv? (if make-unreadable? #f (term (,symbol := ,path-segment))))
       (values replacement-path-segment kv?))
 
     ; replace a single path segment by a "∈" wildcard
     (define (mutate-∈ path-segment make-unreadable?)
       (define symbol (gensym))
-      (define replacement-path-segment (term (∈ ,symbol)))
+      (define replacement-path-segment (term (∈ [~ ,symbol])))
       (define kv (if make-unreadable?
                      (term (,symbol := ,(gen-array-object)))
                      (term (,symbol := ,(gen-array-object #:must-include-val path-segment)))))
@@ -113,18 +190,18 @@
 
     ; replace a single path segment by a "*" wildcard
     (define (mutate-* path-segment make-unreadable?)
-      (define replacement-path-segment '*)
-      (values replacement-path-segment #f))
+      (values wildcard-path-expression #f))
 
     ; list all possible wildcard mutate procedures
     (define mutations (list mutate-= mutate-∈ mutate-*))
 
 
     ; potentially transform a path segment into a random wildcard
-    (define (path-segment->field-or-wildcard path-segment)
+    (define (path-segment->key-or-path-expression path-segment)
+      ; replace only keys, not path expressions that already exist
       (if (redex-match? CommonLang k path-segment)
-          (let ((replace-with-wildcard? (< (random 0 100) wildcard-chance)))
-            (if replace-with-wildcard?
+          (let ((replace-with-path-expression? (< (random 0 100) wildcard-chance)))
+            (if replace-with-path-expression?
                 (let ((mutate (random-ref mutations))
                       (make-unreadable? (< (random 0 100) unreadable-percent)))
                   (when (and make-unreadable? (not (eq? mutate mutate-*)))
@@ -140,11 +217,67 @@
                 path-segment))
           path-segment))
 
-    (define glob (map path-segment->field-or-wildcard path))
-    glob)
+    (define (maybe-invent-new-path! path-expression flat-path position)
+      (define invented-path
+        (cond ((eq? path-expression wildcard-path-expression) (list-set flat-path position (gensym)))
+              (else #f)))
+      (when invented-path
+        (set! flat-path-suggestions (cons invented-path flat-path-suggestions))))
 
-  (define globs (map path->glob paths))
-  (values globs user-environment paths-made-unreadable))
+    (define (maybe-unionify path)
+      (define should-use-union? (< (random 0 100) use-union-chance))
+      (if should-use-union?
+          (let ((union-candidate (findf (lambda (union-candidate)
+                                          (list-prefix? (union-candidate-path-full union-candidate) path))
+                                        union-candidates)))
+            ;(display "UNION CANDIDATE ") (display union-candidate) (newline)
+            (if union-candidate
+                (let ((result (list-set path (length (union-candidate-path-prefix union-candidate)) (union-candidate-path-expression union-candidate))))
+                  ;(display "replacing path ") (display path) (display " with ") (display result) (newline)
+                  result)
+                path))
+          path))
+                                        
+
+    (define maybe-unionified-path (maybe-unionify path))
+    (define path-selector
+      (for/list ([position (in-range 0 (length maybe-unionified-path))])
+        (define current-path-key (list-ref maybe-unionified-path position))
+        (define replacement-expression (path-segment->key-or-path-expression current-path-key))
+        ; not: maybe invent a new path based on the _original_ path (!). This is because the invented path is expected to be flat,
+        ; rather than a path selector
+        (maybe-invent-new-path! replacement-expression path position)
+        replacement-expression))
+    path-selector)
+ 
+
+  (define path-selectors (map path->path-selector paths))
+  (values path-selectors user-environment paths-made-unreadable flat-path-suggestions))
+
+(define (test)
+  (define d '((z := #t)
+  (2 := 'F)
+  (p := 'lm)
+  (N := ((1 := "rt")))
+  (0 := 'ZW)
+  (J := 'w)
+  (f := 1)
+  (x := ((0 := 1) (3 := #t) (g12049598 := 1)))
+  (g12049596 := #t)
+  (g12049597 := 1)))
+  (define p '(N g12049602))
+  (define privs '((ALLOW role#0 READ OF ((⋃ f g12049597)))
+     (ALLOW role#0 WRITE OF (*))
+     (ALLOW role#0 READ OF (J))
+     (ALLOW role#0 READ OF (x 0))
+     (ALLOW role#0 READ OF (N 1))
+     (ALLOW role#0 WRITE OF (J))
+     (ALLOW role#0 WRITE OF ((= (~ g12049601)) *))
+     (ALLOW role#0 WRITE OF (f))))
+  (define env '())
+  (term (is-writable ,d ,p ,privs ,env)))
+
+  
 
 ; generate an object whose size is bounded by the given a particular depth.
 ; the depth is defined by Redex as the size of the parse tree
@@ -162,12 +295,12 @@
 
 
 
-(define (glob->privilege glob role permission)
-  (term (ALLOW ,role ,permission OF ,glob)))
+(define (path-selector->privilege path-selector role permission)
+  (term (ALLOW ,role ,permission OF ,path-selector)))
 
-(define (globs->privileges role globs permission)
-  (map (lambda (glob) (glob->privilege glob role permission))
-       globs))
+(define (path-selectors->privileges role path-selectors permission)
+  (map (lambda (path-selector) (path-selector->privilege path-selector role permission))
+       path-selectors))
 
 (define (project-object object privileges user-environment)
   (term (readable-projection ,object ,privileges ,object ,user-environment ())))
@@ -180,8 +313,7 @@
     (generate-term CommonLang p path-depth)))
 
 (define (execute-read-tests #:object-depth [object-depth 4])
-
-  (define (generate-paths object #:keep-flat-minimum-percent [keep-flat-min-percent 0])
+  (define (generate-paths object union-candidates #:keep-flat-minimum-percent [keep-flat-min-percent 0])
     ;; generate correct paths in the this object
     ;; shuffle the list of paths to remove any potential ordering of them
     (define all-paths (shuffle (get-all-paths object)))
@@ -190,40 +322,45 @@
     (define-values (readable-field-access-paths initial-nonreadable-paths) (split-at all-paths (round (/ (length all-paths) 2))))
     (define nr-of-paths (length readable-field-access-paths))
     (define nr-of-paths-to-keep-flat (round (* (/ nr-of-paths 100) keep-flat-min-percent)))
-    (define-values (paths-to-keep-flat paths-to-globbify) (split-at readable-field-access-paths nr-of-paths-to-keep-flat))
+    (define-values (paths-to-keep-flat paths-to-expressionify) (split-at readable-field-access-paths nr-of-paths-to-keep-flat))
   
-    (define-values (globs user-environment paths-made-unreadable) (globbify paths-to-globbify))
-    (define readable-globs (append paths-to-keep-flat globs))
-    (report "globs" globs)
+    (define-values (path-selectors user-environment paths-made-unreadable _ignored) (expressionify-paths paths-to-expressionify union-candidates))
+    (define readable-path-selectors (append paths-to-keep-flat path-selectors))
+    (report "path-selectors" path-selectors)
     (report "paths-made-unreadable" paths-made-unreadable)
     (report "user-environment" user-environment)
     (define nonreadable-field-access-paths (remove-readable-paths
                                             (append paths-made-unreadable initial-nonreadable-paths)
-                                            readable-globs
+                                            readable-path-selectors
                                             user-environment))
 
-    (values (remove-non-readable-paths all-paths readable-globs user-environment)
-            readable-globs
+    (values (remove-non-readable-paths all-paths readable-path-selectors user-environment)
+            readable-path-selectors
             nonreadable-field-access-paths
             user-environment))
 
   
   ;; generate objects
   (define obj (generate-object #:depth object-depth))
-  (report "obj" obj)
+  (report "generated object" obj)
 
+  ; insert possible unions into the object
+  (define-values (union-candidates new-obj) (create-unions obj))
+  (set! obj new-obj)
+  (report "generated object after modifications for adding unions" obj)
+  
   ;; generate correct paths in the this object
   ;; shuffle the list of paths to remove any potential ordering of them
 
-  (define-values (flat-readable-paths globs nonreadable-paths user-environment) (generate-paths obj))
-  (report "readable globs" globs)
+  (define-values (flat-readable-paths path-selectors nonreadable-paths user-environment) (generate-paths obj union-candidates))
+  (report "readable path-selectors" path-selectors)
   (report "nonreadable-paths" nonreadable-paths)
   (report "user-environment" user-environment)
 
-  (define random-generated-paths (generate-nonsense-random-paths (length globs) #:path-depth object-depth))
+  (define random-generated-paths (generate-nonsense-random-paths (length path-selectors) #:path-depth object-depth))
 
   (define role (generate-role))
-  (define privileges (globs->privileges role globs 'READ))
+  (define privileges (path-selectors->privileges role path-selectors 'READ))
   (report "privileges" privileges)
 
   (define projected-obj (project-object obj privileges user-environment))
@@ -263,7 +400,10 @@
 
     (for/list ([program all-programs])
       ;(display "checking: ") (displayln program)
-      (define reduction-results (apply-reduction-relation* red-replica program))
+      (define reduction-results
+
+
+        (apply-reduction-relation* red-replica program))
       ;(display "==> reduced to: ") (displayln reduction-results)
       (unless (and (= 1 (length reduction-results))
                    (property? (first reduction-results)))
@@ -299,7 +439,6 @@
 
 
 
-
 (define (execute-write-tests #:object-depth [object-depth 5])
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; Data generation (`d`) ;;
@@ -309,6 +448,11 @@
   (define obj (generate-object #:depth object-depth))
   (report "obj" obj)
 
+   ; insert possible unions into the object
+  (define-values (union-candidates new-obj) (create-unions obj))
+  (set! obj new-obj)
+  (report "generated object after modifications for adding unions" obj)
+  
   ;; generate correct paths in this object
   ;; shuffle the list of paths to remove any potential ordering of them
   (define all-paths (get-all-paths obj))
@@ -321,7 +465,6 @@
   ;;;;;;;;;;;;;;;;;;;;;
 
   ;(define all-roles (generate-term CommonLang (role_1 role_2 ...) object-depth))
-  (define wildcard-role '*)
   (define all-roles
     (cons wildcard-role (for/list ([i (in-range (random 1 (* object-depth 2)))])
                           (string->symbol (format "role#~s" i)))))
@@ -333,21 +476,21 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   ;(define privileges (map (lambda (path) (term (ALLOW ,role ,(generate-term CommonLang )path role))) readable-paths))
-  (struct role (readable-globs writable-globs [user-environment #:mutable])
+  (struct role (readable-path-selectors writable-path-selectors writable-path-suggestions [user-environment #:mutable])
     #:methods gen:custom-write
     [(define write-proc
        (make-constructor-style-printer
         (lambda (obj) 'role)
-        (lambda (obj) (list (role-readable-globs obj) (role-writable-globs obj) (role-user-environment obj)))))])
+        (lambda (obj) (list (role-readable-path-selectors obj) (role-writable-path-selectors obj) (role-user-environment obj)))))])
   (define roles (make-immutable-hash
                  (for/list ([role-name all-roles])
                    (define sample-size (if (eq? role-name wildcard-role) 1/10 1/3))
                    (define readable-access-paths (random-sample selected-paths (round (* (length selected-paths) sample-size))))
                    (define writable-access-paths (random-sample selected-paths (round (* (length selected-paths) sample-size))))
-                   (define-values (readable-globs read-env _1) (globbify readable-access-paths))
-                   (define-values (writable-globs write-env _2) (globbify writable-access-paths))
+                   (define-values (readable-path-selectors read-env _ignored1 _ignored2) (expressionify-paths readable-access-paths union-candidates))
+                   (define-values (writable-path-selectors write-env _ignored3 writable-path-suggestions) (expressionify-paths writable-access-paths union-candidates))
                    (define user-environment (append read-env write-env))
-                   (cons role-name (role readable-globs writable-globs user-environment)))))
+                   (cons role-name (role readable-path-selectors writable-path-selectors writable-path-suggestions user-environment)))))
   (define roles-without-wildcard (hash-remove roles wildcard-role))
   ;(display "roles: ") (pretty-print roles)
 
@@ -361,10 +504,10 @@
   (define privileges-per-role
     (hash-map/copy roles
                    (lambda (role-name obj)
-                     (define readable-globs (role-readable-globs obj))
-                     (define writable-globs (role-writable-globs obj))
-                     (define read-privileges (globs->privileges role-name readable-globs 'READ))
-                     (define write-privileges (globs->privileges role-name writable-globs 'WRITE))
+                     (define readable-path-selectors (role-readable-path-selectors obj))
+                     (define writable-path-selectors (role-writable-path-selectors obj))
+                     (define read-privileges (path-selectors->privileges role-name readable-path-selectors 'READ))
+                     (define write-privileges (path-selectors->privileges role-name writable-path-selectors 'WRITE))
                      (values role-name (append read-privileges write-privileges)))))
 
   ;the security policy entails a list of all privileges for all roles
@@ -384,22 +527,28 @@
         (lambda (obj) 'paths)
         (lambda (obj) (list (paths-non-readable obj) (paths-strictly-readable obj) (paths-writable obj)))))])
 
+  
   ; for each role, compile a list of flat paths (i.e., paths that only contain symbols) which:
   ;   - cannot be read
   ;   - can strictly be read (i.e., read but not written)
   ;   - can be written to
   (define paths-per-role
     (hash-map/copy roles
-                   (lambda (role-name obj)
+                   (lambda (role-name role-struct)
                      (define privileges (get-privileges-for-role privileges-per-role role-name))
-                     (define user-environment (role-user-environment obj))
-                     (define globs (map last privileges))
-                     (define non-readable-paths (remove-readable-paths all-paths globs user-environment))
-                     (define readable-paths (remove-non-readable-paths all-paths globs user-environment))
-                     (define writable-paths (keep-writable-paths all-paths privileges user-environment))
+                     (define user-environment (role-user-environment role-struct))
+                     (define writable-path-suggestions (role-writable-path-suggestions role-struct))
+                     (define all-paths-extended (append all-paths writable-path-suggestions))
+                     (define path-selectors (map last privileges))
+                     (define non-readable-paths (remove-readable-paths all-paths-extended path-selectors user-environment))
+                     (define readable-paths (remove-non-readable-paths all-paths-extended path-selectors user-environment))
+                     (define writable-paths (keep-writable-paths obj all-paths-extended privileges user-environment))
                      (define strictly-readable-paths (remove* writable-paths readable-paths equal?))
+                     (define role-name-str (symbol->string role-name))
+                     (report (string-append role-name-str ": readable-paths") readable-paths)
+                     (report (string-append role-name-str ": writable-paths") writable-paths)
                      (values role-name (paths non-readable-paths strictly-readable-paths writable-paths)))))
-  (report "flat paths per role (non-readable, strictly readable, writable)" paths-per-role)
+  ;(report "flat paths per role (non-readable, strictly readable, writable)" paths-per-role)
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; Privilege projection ;;
@@ -455,6 +604,8 @@
       (define reduction-results (apply-reduction-relation* leader-request-red-rel program))
       ;(display "==> reduced to: ") (pretty-print reduction-results)
       (unless (property? reduction-results)
+        (report "tested program: " program)
+        (report "reduction results: " reduction-results)
         (error (string-append "counterexample found: ") program reduction-results))))
 
  
@@ -511,6 +662,7 @@
     (term (PUSH-Δ ,s-id ,delta)))
 
 
+
   (hash-for-each
    users
    (lambda (role-name user)
@@ -518,7 +670,7 @@
      (define non-readable-paths (paths-non-readable role-paths))
      (define strictly-readable-paths (paths-strictly-readable role-paths))
      (define writable-paths (paths-writable role-paths))
-
+     
      (define current-user-sid (user-sid user))
 
      (define (generate-programs paths)
@@ -572,7 +724,7 @@
 (define (print-all-covered-cases)
   (for-each (lambda (coverage) (pretty-print (covered-cases coverage))) (relation-coverage)))
 
-(define max-attempts 7813)
+(define max-attempts 1000)
 #;(for ([i (in-range 0 (+ max-attempts 1))])
   (displayln (string-append "### --- attempt " (number->string i) " --- ###"))
   (execute-read-tests #:object-depth 6))
@@ -583,6 +735,7 @@
     (execute-write-tests #:object-depth 5))
 
 (print-all-covered-cases)
+(displayln "OK")
 
 
   

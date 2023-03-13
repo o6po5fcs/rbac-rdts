@@ -248,4 +248,26 @@
                                             
             (make-program replica-modified (term #t))))
 
+
+(let* ((replica-name (term teams))
+       (rdt-data (term
+                  ((team1
+                    := ((name := "The Fantastical Scouts")
+                        (sightings := ((1674813931967 :=
+                                                      ((location := ((lat := 51.06038) (lng := 4.67201)))
+                                                       (species := "Fly Agaric")
+                                                       (photo := "blob:...")
+                                                       (points := 3))))))))))
+       (rdt-data-modified (term (json-write ,rdt-data (team1 sightings 1674813931967 feedback) "Do not eat this!")))
+       (rdt-delta (term ((! (team1 sightings 1674813931967 feedback) "Do not eat this!"))))
+       (privs (term ((ALLOW biologist WRITE OF (* sightings * [⋃ points feedback])))))
+       (replica (term (,(make-replica replica-name privs rdt-data r*-empty-delta))))
+       (replica-modified (term (,(make-replica replica-name privs rdt-data-modified rdt-delta)))))
+  (test-->> red-replica
+            (make-program replica (term (let ((cr (root teams)))
+                                          (let ((sighting (• (• (• cr team1) sightings) 1674813931967)))
+                                            (•! sighting feedback "Do not eat this!")))))
+            (make-program replica-modified (term "Do not eat this!"))))
+
+
 (test-results)

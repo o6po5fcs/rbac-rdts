@@ -82,7 +82,7 @@
         [((ιʳ (priv ...) d_new env (δ ... (! (k_1 ... k_2) atom))) r_other ...) (in-hole E atom)]
         (judgment-holds (element-of r_c (r ...)))
         (where (ιʳ (priv ...) d env (δ ...)) r_c)
-        (judgment-holds (is-writable (k_1 ... k_2) (priv ...) env))
+        (judgment-holds (is-writable d (k_1 ... k_2) (priv ...) env))
         (where (r_other ...) (list-without (r ...) r_c))
         (where d_new (json-write d (k_1 ... k_2) atom))
         "perform-write")
@@ -90,7 +90,7 @@
         [(r ...) (error "Write forbidden"#;(,(format "Write to ~s of ~s failed: privileges were ~s."
                                  (term k_2) (term (ιʳ (k_1 ...))) (term (priv ...)))))]
         (judgment-holds (element-of (ιʳ (priv ...) d env (δ ...)) (r ...)))
-        (judgment-holds (¬is-writable (k_1 ... k_2) (priv ...) env))
+        (judgment-holds (¬is-writable d (k_1 ... k_2) (priv ...) env))
         "reject-write-¬w")
    (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 v))]
         [(r ...) (error "Write forbidden")]
@@ -178,9 +178,9 @@
 
 (define-judgment-form
   ReplicaLang-inner
-  #:mode     (¬is-writable I I I)
-  #:contract (¬is-writable p (priv ...) d)
+  #:mode     (¬is-writable I I I I)
+  #:contract (¬is-writable d p (priv ...) d)
 
-  [(where #f ,(term (is-writable p (priv ...) env)))
+  [(where #f ,(term (is-writable d p (priv ...) env)))
    -------------------- "Invert result"
-   (¬is-writable p (priv ...) env)])
+   (¬is-writable d p (priv ...) env)])

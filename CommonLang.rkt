@@ -4,7 +4,8 @@
          redex/pict)
 (provide CommonLang
          json-write
-         matches-in-env is-writable
+         json-write-compound
+         matches-in-env is-writable is-readable
          data-to-paths data-to-keys
          element-of distinct list-without
          save-as)
@@ -22,52 +23,47 @@
   (k ::= number #;string i)
   (json ::= atom d)
   ; paths
-  (p ::= (k ...))
+  (p ::= (k ...)) ; TODO: Path starting from root: ($ k ...)
   ;; changes
   (δ ::= (! p atom))
-  ; globs
-  (g ::= (g-segment ...))
-  (g-segment ::= k * (= i) (∈ i))
+  ; path selectors
+  (ps ::= (p-exp ...))
+  (p-exp ::= k * [script-op (~ k ...)] [⋃ k ...])
   
   (role ::= i)
   (p-role ::= role *)
 
   ; privileges
-  (priv ::= (ALLOW p-role r/w OF g))
+  (priv ::= (ALLOW p-role r/w OF ps))
   ; permissions
   (r/w ::= READ WRITE)
 
   ; user environment
   (env ::= d)
 
+  (script-op ::= ∈ ∋ < > ≤ ≥ ≠ =)
+
   (i ::= variable-not-otherwise-mentioned)
   
 
   ; Other reserved symbols, used in child languages
   (other-reserved-symbols ::=
-                          LOGIN GET-REPLICA PUSH-Δ ACCEPT REJECT PUSH-SNAPSHOT LOGIN-SUCCESS
-                          if • •! let error
-                          + - / * and or not < > =)
+                          LOGIN GET-REPLICA PUSH-Δ ACCEPT REJECT INIT ACCEPT-LOGIN
+                          if • •! let error root λ
+                          + - / * and or not)
   
   
   )
 
 
 
+; To `json` at `p` write `atom` and receive the updated `json`.
 (define-metafunction CommonLang
-  json-write : json p atom -> json or (error string_explanation)
+  json-write : json p atom -> json
   [(json-write atom_old () atom_new)
    atom_new]
-  [(json-write atom_old () d_new)
-   (error "Write forbidden"#;,(format
-           "Writing ~s to data structure currently containing ~s would change schema."
-           (term d_new)
-           (term atom_old)))]
   [(json-write d_old () atom_new)
-   (error "Write forbidden"#;,(format
-           "Writing ~s to data structure currently containing ~s would change schema."
-           (term atom_new)
-           (term d_old)))]
+   atom_new]
   [(json-write ((k_1 := json_1) ...
                 (k_2 := json_2)
                 (k_3 := json_3) ...)
@@ -77,63 +73,219 @@
     (k_2 := json_new)
     (k_3 := json_3) ...)
    (where json_new (json-write json_2 (k_4 ...) atom_new))]
-  [(json-write ((k_1 := json_1) ...
-                (k_2 := json_2)
-                (k_3 := json_3) ...)
+  [(json-write ((k_1 := json_1) ...)
                (k_2 k_4 ...)
                atom_new)
-   (error "Write forbidden")])
+   ((k_1 := json_1) ...
+    (k_2 := json_new))
+   (where json_new (json-write () (k_4 ...) atom_new))])
+
+; To `json_1` at `p` write `json_2` and receive the updated `json_2`.
+(define-metafunction CommonLang
+  json-write-compound : json_1 p json_2 -> json_3
+  [(json-write-compound json_old () json_new)
+   json_new]
+  [(json-write-compound (kj_1 ... (k_2 := json_2) kj_3 ...)
+               (k_2 k_4 ...)
+               json_new)
+   (kj_1 ... (k_2 := json_2′) kj_3 ...)
+   (where json_2′ (json-write-compound json_2 (k_4 ...) json_new))]
+  [(json-write-compound (kj_1 ...) (k_2 k_4 ...) json_new)
+   (kj_1 ... (k_2 := json_2′))
+   (where json_2′ (json-write-compound () (k_4 ...) json_new))]
+  [(json-write-compound atom_old (k_2 k_4 ...) json_new)
+   ((k_2 := json_2′))
+   (where json_2′ (json-write-compound () (k_4 ...) json_new))])
 
 
-;; Holds iff WRITE of glob itself.
-;; Writing has to be strict, hence uses `matches-in-env`.
+;; Holds iff WRITE of path selector itself.
 (define-judgment-form
   CommonLang
-  #:mode     (is-writable I I I)
-  #:contract (is-writable p (priv ...) env)
+  #:mode     (is-writable I I I I)
+  #:contract (is-writable d p (priv ...) env)
 
-  [(matches-in-env g p env)
+  [(matches-in-env ps p env)
    --------------------
-   (is-writable p (priv_l ... (ALLOW p-role WRITE OF g) priv_r ...) env)])
+   (is-writable d p (priv_l ... (ALLOW p-role WRITE OF ps) priv_r ...) env)])
 ;(judgment-form->pict is-writable)
+
+;; Holds iff READ or WRITE of path selector (or a path of which path selector is a prefix).
+;;
+;; FIXME: check if this comment still holds in new solution:
+;; Special care has to be taken with path expressions (*/=/∈), as a naive
+;; prefix implementation might erroneously grant read-access to some paths.
+;; Consider, e.g., a `d` of the form `((0 := ((1 := 2))) ((3 := 4)))`.
+;; A path selector `(* 1)` and any user env should not give access to path `(3)`, even
+;; though `3` matches `*` and the remainder of the path (`(1)`) can be ignored
+;; since prefixes don't care about the rest of the list. Instead, it should be
+;; verified that no path `(3 1)` exists, thus `(* 1)` could not have referred to
+;; `(3 1)`, thus no access should be granted to `(3)`. We currently enforce this
+;; by restricting the choices picked for path expressions to the value
+;; of a path that actually exists in the data structure.
+(define-judgment-form
+  CommonLang
+  #:mode     (is-readable I I I I)
+  #:contract (is-readable d p (priv ...) env)
+
+  [(where (p_all ...) (data-to-paths d))
+   (element-of p_selected (p_all ...))
+   (is-prefix-of p p_selected)
+   (matches-in-env ps p_selected env)
+   (element-of r/w (READ WRITE))
+   --------------------
+   (is-readable d p (priv_l ... (ALLOW p-role r/w OF ps) priv_r ...) env)])
+;(judgment-form->pict is-readable)
+
+(define-judgment-form
+  CommonLang
+  #:mode     (is-prefix-of I I)
+  #:contract (is-prefix-of p p)
+
+  [(is-prefix-of (k_2 ...) (k_3 ...))
+   --------------------
+   (is-prefix-of (k_1 k_2 ...) (k_1 k_3 ...))]
+
+  [--------------------
+   (is-prefix-of () p)])
+
+
+(define-judgment-form
+  CommonLang
+  #:mode     (script-expr-holds-for-atom I I I)
+  #:contract (script-expr-holds-for-atom script-op atom k)
+
+  [-------------------- "Holds if quoted eq"
+   (script-expr-holds-for-atom = (quote i) i)]
+  [-------------------- "Holds if number eq"
+   (script-expr-holds-for-atom = number number)]
+  [(side-condition ,(not (equal? (term i_1) (term i_2)))) ; FIXME: use i_!_1 ?
+   -------------------- "Holds if quoted neq"
+   (script-expr-holds-for-atom ≠ (quote i_1) i_2)]
+  [(side-condition ,(not (equal? (term number_1) (term number_2))))
+   -------------------- "Holds if number neq"
+   (script-expr-holds-for-atom ≠ number_1 number_2)]
+  [(side-condition ,(< (term number_1) (term number_2)))
+   -------------------- "Holds if number lt"
+   (script-expr-holds-for-atom < number_1 number_2)]
+  [(side-condition ,(<= (term number_1) (term number_2)))
+   -------------------- "Holds if number le"
+   (script-expr-holds-for-atom ≤ number_1 number_2)]
+  [(side-condition ,(> (term number_1) (term number_2)))
+   -------------------- "Holds if number gt"
+   (script-expr-holds-for-atom > number_1 number_2)]
+  [(side-condition ,(>= (term number_1) (term number_2)))
+   -------------------- "Holds if number ge"
+   (script-expr-holds-for-atom ≥ number_1 number_2)])
+
+(define-judgment-form
+  CommonLang
+  #:mode     (script-expr-holds-in-env I I I I)
+  #:contract (script-expr-holds-in-env script-op k (k ...) env)
+
+  [(where (kj_1 ... (k_2 := atom_2) kj_3 ...) env)
+   (script-expr-holds-for-atom script-op atom_2 k)
+   -------------------- "Holds for atom"
+   (script-expr-holds-in-env script-op k (k_2) env)]
+  ; (script-expr-holds-in-env ∈ k=c1 (k2)=(own-courses) env=((own-courses := ((0 := 'c1) (1 := 'c2)))))
+  ; d_2=((0 := 'c1) (1 := 'c2))
+  [(where (kj_1 ... (k_2 := d_2) kj_3 ...) env)
+   (where (kj_4 ... (k_5 := number) kj_6 ...) d_2)
+   -------------------- " Holds if number in"
+   (script-expr-holds-in-env ∈ number (k_2) env)]
+  [(where (kj_1 ... (k_2 := d_2) kj_3 ...) env)
+   (where (kj_4 ... (k_5 := (quote i)) kj_6 ...) d_2) ;; quote i here
+   -------------------- " Holds if key in"
+   (script-expr-holds-in-env ∈ i (k_2) env)]
+  [(where (kj_1 ... (k_2 := d_2) kj_3 ...) env)
+   (script-expr-holds-in-env script-op k (k_4 ...) d_2)
+   -------------------- "Recur"
+   (script-expr-holds-in-env script-op k (k_2 k_4 ...) env)]
+  )
+
+(define-metafunction CommonLang
+  prefix-all-by : k (p ...) -> (p ...)
+  [(prefix-all-by k ())
+   ()]
+  [(prefix-all-by k ((k_1 ...) p_2 ...))
+   ((k k_1 ...) p_3 ...)
+   (where (p_3 ...) (prefix-all-by k (p_2 ...)))])
+
+
 
 (define-judgment-form
   CommonLang
   #:mode     (matches-in-env I I I)
-  #:contract (matches-in-env g p d)
+  #:contract (matches-in-env ps p env)
+  
+  [--------------------------------- "Selector consumed -> matched path"
+   (matches-in-env () () env)]
+  [(matches-in-env (p-exp ...) (k_2 ...) env)
+   --------------------------------- "Matching literal key -> consume key"
+   (matches-in-env (k_1 p-exp ...) (k_1 k_2 ...) env)]
+  [(matches-in-env (k_1 p-exp ...) (k_2 ...) env)
+   --------------------------------- "FIXME: UNION: first literal key matches"
+   (matches-in-env ([⋃ k_1 k_3 ...] p-exp ...) (k_2 ...) env)]
+  [(matches-in-env ([⋃ k_3 ...] p-exp ...) (k_2 ...) env)
+   --------------------------------- "FIXME: UNION: a non-first literal key matches"
+   (matches-in-env ([⋃ k_1 k_3 ...] p-exp ...) (k_2 ...) env)]
+  [(matches-in-env (p-exp ...) (k_2 ...) env)
+   --------------------------------- "Wildcard key -> consume first"
+   (matches-in-env (* p-exp ...) (k_1 k_2 ...) env)]
+  [(script-expr-holds-in-env script-op k_1 (k ...) env)
+   (matches-in-env (p-exp ...) (k_2 ...) env)
+   --------------------------------- "Script selector segment -> consume first when script-expr holds"
+   (matches-in-env ([script-op (~ k ...)] p-exp ...) (k_1 k_2 ...) env)])
 
-  [(matches-in-env (g-segment_2 ...) (k_2 ...) env)
-   -------------------- "Match * wildcard"
-   (matches-in-env (* g-segment_2 ...) (k_1 k_2 ...) env)]
 
-  [(matches-in-env (g-segment_2 ...) (k_2 ...) env)
-   -------------------- "Match identical key"
-   (matches-in-env (k_1 g-segment_2 ...) (k_1 k_2 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_5 ...) env)
-   (where (kj_3 ... (k_1 := atom_2) kj_4 ...) env)
-   -------------------- "Match = wildcard atom"
-   (matches-in-env ((= k_1) g-segment_2 ...) (atom_2 k_5 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_5 ...) env)
-   (where (kj_3 ... (k_1 := (quote i_2)) kj_4 ...) env)
-   -------------------- "Match = wildcard identifier"
-   (matches-in-env ((= k_1) g-segment_2 ...) (i_2 k_5 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_8 ...) env)
-   (where (kj_3 ... (k_1 := (kj_5 ... (k_6 := atom_2) kj_7 ...)) kj_4 ...) env)
-   -------------------- "Match ∈ wildcard atom"
-   (matches-in-env ((∈ k_1) g-segment_2 ...) (atom_2 k_8 ...) env)]
-
-  [(matches-in-env (g-segment_2 ...) (k_8 ...) env)
-   (where (kj_3 ... (k_1 := (kj_5 ... (k_6 := (quote i_2)) kj_7 ...)) kj_4 ...) env)
-   -------------------- "Match ∈ wildcard identifier"
-   (matches-in-env ((∈ k_1) g-segment_2 ...) (i_2 k_8 ...) env)]
-
-  [-------------------- "Empty paths"
-   (matches-in-env () () env)])
-;(judgment-form->pict matches-in-env)
-
+#;(define-metafunction CommonLang
+  all-paths-matching : ps json env -> (p ...)
+  [(all-paths-matching () d env)
+   (())
+   (clause-name "Selector consumed -> match any data")]
+  [(all-paths-matching () atom env)
+   (())
+   (clause-name "Selector consumed -> match any atom")]
+  [(all-paths-matching (k_2 p-exp ...) (kj_1 ... (k_2 := json_2) kj_3 ...) env)
+   (prefix-all-by k_2 (p_result ...))
+   (where (p_result ...) (all-paths-matching (p-exp ...) json_2 env))
+   (clause-name "Matching literal key -> consume key")]
+  [(all-paths-matching (k p-exp ...) (kj ...) env)
+   ()
+   (clause-name "Non-matching literal key -> fail to match")]
+  [(all-paths-matching ([⋃ k_2 k_rest ...] p-exp ...) (kj_1 ... (k_2 := json_2) kj_3 ...) env)
+   (p_result-2 ... p_result-rest ...)
+   (where (p_result-2 ...) (prefix-all-by k_2 (all-paths-matching (p-exp ...) json_2 env)))
+   (where (p_result-rest ...) (all-paths-matching ([⋃ k_rest ...] p-exp ...) (kj_1 ... kj_3 ...) env))
+   (clause-name "UNION: FIXME: In Progress!")]
+  [(all-paths-matching ([⋃ k k_rest ...] p-exp ...) (kj ...) env)
+   (p_result-rest ...)
+   (where (p_result-rest ...) (all-paths-matching ([⋃ k_rest ...] p-exp ...) (kj ...) env))
+   (clause-name "UNION: FIXME: In Progress! when no match first")]
+  [(all-paths-matching ([⋃] p-exp ...) (kj ...) env)
+   (())
+   (clause-name "UNION: FIXME: In Progress! when none left")]
+  [(all-paths-matching (* p-exp ...) ((k_1 := json_1) kj_2 ...) env)
+   (p_result-1 ... p_result-2 ...)
+   (where (p_result-1 ...) (prefix-all-by k_1 (all-paths-matching (p-exp ...) json_1 env)))
+   (where (p_result-2 ...) (all-paths-matching (* p-exp ...) (kj_2 ...) env))
+   (clause-name "Wildcard key -> consume first")]
+  [(all-paths-matching ([script-op (~ k ...)] p-exp ...) ((k_1 := json_1) kj_2 ...) env)
+   (p_result-1 ... p_result-2 ...)
+   (judgment-holds (script-expr-holds-in-env script-op k_1 (k ...) env))
+   (where (p_result-1 ...) (prefix-all-by k_1 (all-paths-matching (p-exp ...) json_1 env)))
+   (where (p_result-2 ...) (all-paths-matching ([script-op (~ k ...)] p-exp ...) (kj_2 ...) env))
+   (clause-name "Script selector segment -> consume first when script-expr holds")]
+  [(all-paths-matching ([script-op (~ k ...)] p-exp ...) (kj_1 kj_2 ...) env)
+   (all-paths-matching ([script-op (~ k ...)] p-exp ...) (kj_2 ...) env)
+   (clause-name "Script selector segment -> skip first when script-expr does not hold")]
+  [(all-paths-matching (p-exp ...) () env)
+   ()
+   (clause-name "Any case with empty object -> fail to match")]
+  [(all-paths-matching (p-exp ...) atom env)
+   ()
+   (clause-name "Any case with atom as data -> fail to match")]
+  )
+;(current-traced-metafunctions '(all-paths-matching))
 
 ;; Metafunctions for reduction relations on CommonLang
 (define-metafunction CommonLang

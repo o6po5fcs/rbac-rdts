@@ -100,7 +100,7 @@
            "SESSION#alice"
            ((ALLOW student READ OF (courses * name))
             (ALLOW student READ OF (courses * credits))
-            (ALLOW student READ OF (courses * registrations (= student-id) *)))
+            (ALLOW student READ OF (courses * registrations [= (~ student-id)] *)))
            ((courses
              :=
              ((c1
@@ -140,7 +140,7 @@
              teacher
              WRITE
              OF
-             (courses (∈ own-courses) registrations * grade)))
+             (courses [∈ (~ own-courses)] registrations * grade)))
            ((courses
              :=
              ((c1
@@ -175,7 +175,7 @@
            "SESSION#alice"
            ((ALLOW student READ OF (courses * name))
             (ALLOW student READ OF (courses * credits))
-            (ALLOW student READ OF (courses * registrations (= student-id) *)))
+            (ALLOW student READ OF (courses * registrations [= (~ student-id)] *)))
            ((courses
              :=
              ((c1
@@ -230,7 +230,7 @@
              teacher
              WRITE
              OF
-             (courses (∈ own-courses) registrations * grade)))
+             (courses [∈ (~ own-courses)] registrations * grade)))
            ((courses
              :=
              ((c1
