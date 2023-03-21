@@ -28,7 +28,7 @@
   (δ ::= (! p atom))
   ; path selectors
   (ps ::= (p-exp ...))
-  (p-exp ::= k * [script-op (~ k ...)] [⋃ k ...])
+  (p-exp ::= k * [script-op (~ k ...)] [script-op k] [⋃ k ...])
   
   (role ::= i)
   (p-role ::= role *)
@@ -127,14 +127,32 @@
   #:mode     (is-readable I I I I)
   #:contract (is-readable d p (priv ...) env)
 
-  [(where (p_all ...) (data-to-paths d))
-   (element-of p_selected (p_all ...))
-   (is-prefix-of p p_selected)
-   (matches-in-env ps p_selected env)
-   (element-of r/w (READ WRITE))
+  [(where (p_all ...) (data-to-paths d)) (element-of p_selected (p_all ...)) (is-prefix-of p p_selected)
+   (matches-in-env ps p_selected env) (element-of r/w (READ WRITE))
    --------------------
    (is-readable d p (priv_l ... (ALLOW p-role r/w OF ps) priv_r ...) env)])
-;(judgment-form->pict is-readable)
+
+(define (render-is-readable . filepath)
+  ;(metafunction-pict-style 'up-down/vertical-side-conditions)
+  ;(metafunction-up/down-indent 45)
+  ;(metafunction-rule-gap-space 10)
+  ;(metafunction-line-gap-space 2)
+  (with-compound-rewriter
+      'element-of
+    (λ (lws)
+      (define lhs (list-ref lws 2))
+      (define rhs (list-ref lws 3))
+      (list "" lhs " ∈ " rhs ""))
+    (with-compound-rewriter
+        'list-without
+      (λ (lws)
+        (define lhs (list-ref lws 2))
+        (define rhs (list-ref lws 3))
+        (list "" lhs "\\" rhs ""))
+      (if (empty? filepath)
+          (render-judgment-form is-readable)
+          (render-judgment-form is-readable (car filepath))))))
+(render-is-readable)
 
 (define-judgment-form
   CommonLang
@@ -148,58 +166,69 @@
   [--------------------
    (is-prefix-of () p)])
 
+(define-judgment-form
+  CommonLang
+  #:mode     (script-holds I I I)
+  #:contract (script-holds script-op k k)
+
+  [(atom-script-holds script-op number k)
+   -------------------- "Holds for number"
+   (script-holds script-op number k)]
+  [(atom-script-holds script-op (quote i) k)
+   -------------------- "Holds for identifier"
+   (script-holds script-op i k)])
 
 (define-judgment-form
   CommonLang
-  #:mode     (script-expr-holds-for-atom I I I)
-  #:contract (script-expr-holds-for-atom script-op atom k)
+  #:mode     (atom-script-holds I I I)
+  #:contract (atom-script-holds script-op atom k)
 
   [-------------------- "Holds if quoted eq"
-   (script-expr-holds-for-atom = (quote i) i)]
+   (atom-script-holds = (quote i) i)]
   [-------------------- "Holds if number eq"
-   (script-expr-holds-for-atom = number number)]
+   (atom-script-holds = number number)]
   [(side-condition ,(not (equal? (term i_1) (term i_2)))) ; FIXME: use i_!_1 ?
    -------------------- "Holds if quoted neq"
-   (script-expr-holds-for-atom ≠ (quote i_1) i_2)]
+   (atom-script-holds ≠ (quote i_1) i_2)]
   [(side-condition ,(not (equal? (term number_1) (term number_2))))
    -------------------- "Holds if number neq"
-   (script-expr-holds-for-atom ≠ number_1 number_2)]
+   (atom-script-holds ≠ number_1 number_2)]
   [(side-condition ,(< (term number_1) (term number_2)))
    -------------------- "Holds if number lt"
-   (script-expr-holds-for-atom < number_1 number_2)]
+   (atom-script-holds < number_1 number_2)]
   [(side-condition ,(<= (term number_1) (term number_2)))
    -------------------- "Holds if number le"
-   (script-expr-holds-for-atom ≤ number_1 number_2)]
+   (atom-script-holds ≤ number_1 number_2)]
   [(side-condition ,(> (term number_1) (term number_2)))
    -------------------- "Holds if number gt"
-   (script-expr-holds-for-atom > number_1 number_2)]
+   (atom-script-holds > number_1 number_2)]
   [(side-condition ,(>= (term number_1) (term number_2)))
    -------------------- "Holds if number ge"
-   (script-expr-holds-for-atom ≥ number_1 number_2)])
+   (atom-script-holds ≥ number_1 number_2)])
 
 (define-judgment-form
   CommonLang
-  #:mode     (script-expr-holds-in-env I I I I)
-  #:contract (script-expr-holds-in-env script-op k (k ...) env)
+  #:mode     (env-script-holds I I I I)
+  #:contract (env-script-holds script-op k (k ...) env)
 
   [(where (kj_1 ... (k_2 := atom_2) kj_3 ...) env)
-   (script-expr-holds-for-atom script-op atom_2 k)
+   (atom-script-holds script-op atom_2 k)
    -------------------- "Holds for atom"
-   (script-expr-holds-in-env script-op k (k_2) env)]
-  ; (script-expr-holds-in-env ∈ k=c1 (k2)=(own-courses) env=((own-courses := ((0 := 'c1) (1 := 'c2)))))
+   (env-script-holds script-op k (k_2) env)]
+  ; (env-script-holds ∈ k=c1 (k2)=(own-courses) env=((own-courses := ((0 := 'c1) (1 := 'c2)))))
   ; d_2=((0 := 'c1) (1 := 'c2))
   [(where (kj_1 ... (k_2 := d_2) kj_3 ...) env)
    (where (kj_4 ... (k_5 := number) kj_6 ...) d_2)
    -------------------- " Holds if number in"
-   (script-expr-holds-in-env ∈ number (k_2) env)]
+   (env-script-holds ∈ number (k_2) env)]
   [(where (kj_1 ... (k_2 := d_2) kj_3 ...) env)
    (where (kj_4 ... (k_5 := (quote i)) kj_6 ...) d_2) ;; quote i here
-   -------------------- " Holds if key in"
-   (script-expr-holds-in-env ∈ i (k_2) env)]
+   -------------------- " Holds if identifier in"
+   (env-script-holds ∈ i (k_2) env)]
   [(where (kj_1 ... (k_2 := d_2) kj_3 ...) env)
-   (script-expr-holds-in-env script-op k (k_4 ...) d_2)
+   (env-script-holds script-op k (k_4 ...) d_2)
    -------------------- "Recur"
-   (script-expr-holds-in-env script-op k (k_2 k_4 ...) env)]
+   (env-script-holds script-op k (k_2 k_4 ...) env)]
   )
 
 (define-metafunction CommonLang
@@ -217,25 +246,48 @@
   #:mode     (matches-in-env I I I)
   #:contract (matches-in-env ps p env)
   
-  [--------------------------------- "Selector consumed -> matched path"
+  [--------------------------------- "selector-consumed"
    (matches-in-env () () env)]
   [(matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "Matching literal key -> consume key"
+   --------------------------------- "match-literal-key"
    (matches-in-env (k_1 p-exp ...) (k_1 k_2 ...) env)]
   [(matches-in-env (k_1 p-exp ...) (k_2 ...) env)
-   --------------------------------- "FIXME: UNION: first literal key matches"
+   --------------------------------- "union-match-first"
    (matches-in-env ([⋃ k_1 k_3 ...] p-exp ...) (k_2 ...) env)]
   [(matches-in-env ([⋃ k_3 ...] p-exp ...) (k_2 ...) env)
-   --------------------------------- "FIXME: UNION: a non-first literal key matches"
+   --------------------------------- "union-match-other"
    (matches-in-env ([⋃ k_1 k_3 ...] p-exp ...) (k_2 ...) env)]
   [(matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "Wildcard key -> consume first"
+   --------------------------------- "match-wildcard"
    (matches-in-env (* p-exp ...) (k_1 k_2 ...) env)]
-  [(script-expr-holds-in-env script-op k_1 (k ...) env)
-   (matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "Script selector segment -> consume first when script-expr holds"
+  [(script-holds script-op k_3 k_1) (matches-in-env (p-exp ...) (k_2 ...) env)
+   --------------------------------- "satisfy-script"
+   (matches-in-env ([script-op k_3] p-exp ...) (k_1 k_2 ...) env)]
+  [(env-script-holds script-op k_1 (k ...) env) (matches-in-env (p-exp ...) (k_2 ...) env)
+   --------------------------------- "satisify-env-script"
    (matches-in-env ([script-op (~ k ...)] p-exp ...) (k_1 k_2 ...) env)])
 
+(define (render-matches-in-env . filepath)
+  ;(metafunction-pict-style 'up-down/vertical-side-conditions)
+  ;(metafunction-up/down-indent 45)
+  ;(metafunction-rule-gap-space 10)
+  ;(metafunction-line-gap-space 2)
+  (with-compound-rewriter
+      'element-of
+    (λ (lws)
+      (define lhs (list-ref lws 2))
+      (define rhs (list-ref lws 3))
+      (list "" lhs " ∈ " rhs ""))
+    (with-compound-rewriter
+        'list-without
+      (λ (lws)
+        (define lhs (list-ref lws 2))
+        (define rhs (list-ref lws 3))
+        (list "" lhs "\\" rhs ""))
+      (if (empty? filepath)
+          (render-judgment-form matches-in-env)
+          (render-judgment-form matches-in-env (car filepath))))))
+(render-matches-in-env)
 
 #;(define-metafunction CommonLang
   all-paths-matching : ps json env -> (p ...)
@@ -271,7 +323,7 @@
    (clause-name "Wildcard key -> consume first")]
   [(all-paths-matching ([script-op (~ k ...)] p-exp ...) ((k_1 := json_1) kj_2 ...) env)
    (p_result-1 ... p_result-2 ...)
-   (judgment-holds (script-expr-holds-in-env script-op k_1 (k ...) env))
+   (judgment-holds (env-script-holds script-op k_1 (k ...) env))
    (where (p_result-1 ...) (prefix-all-by k_1 (all-paths-matching (p-exp ...) json_1 env)))
    (where (p_result-2 ...) (all-paths-matching ([script-op (~ k ...)] p-exp ...) (kj_2 ...) env))
    (clause-name "Script selector segment -> consume first when script-expr holds")]

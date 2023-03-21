@@ -55,29 +55,29 @@
    (--> ((r ...) (in-hole E (if v e_1 e_2)))
         ((r ...) (in-hole E e_1))
         "if #t"
-        (judgment-holds (distinct #f v)))
+        (judgment-holds (distinct v #f)))
    (--> ((r ...) (in-hole E (let ([x v] ...) e)))
         ((r ...) (in-hole E (substitute e [x v] ...)))
         "let")
    (--> ((r ...) (in-hole E ((λ (x ...) e) v ...)))
         ((r ...) (in-hole E (substitute e [x v] ...)))
-        "application")
+        "apply")
    (--> ((r ...) (in-hole E (op v ...)))
         ((r ...) (in-hole E (apply-racket-op op v ...)))
-        "application-rkt")
+        "apply-rkt")
    (--> [(r ...) (in-hole E (root ιʳ))]
         [(r ...) (in-hole E (ιʳ ()))]
         "root-cursor")
    (--> [(r ...) (in-hole E (• (ιʳ (k_1 ...)) k_2))]
         [(r ...) (in-hole E v)]
-        (judgment-holds (element-of (ιʳ (priv ...) d env (δ ...)) (r ...)))
+        (judgment-holds (element-of (ιʳ _ d _ _) (r ...)))
         (where v (json-read ιʳ d (k_1 ... k_2) (k_1 ... k_2)))
-        "perform-read")
+        "read")
    (--> [(r ...) (in-hole E (• (ιʳ (k_1 ...)) k_2))]
-        [(r ...) (error string_explanation)]
-        (judgment-holds (element-of (ιʳ (priv ...) d env (δ ...)) (r ...)))
-        (where (error string_explanation) (json-read ιʳ d (k_1 ... k_2) (k_1 ... k_2)))
-        "reject-read")
+        [(r ...) (error string)]
+        (judgment-holds (element-of (ιʳ _ d _ _) (r ...)))
+        (where (error string) (json-read ιʳ d (k_1 ... k_2) (k_1 ... k_2)))
+        "¬read")
    (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 atom))]
         [((ιʳ (priv ...) d_new env (δ ... (! (k_1 ... k_2) atom))) r_other ...) (in-hole E atom)]
         (judgment-holds (element-of r_c (r ...)))
@@ -85,17 +85,17 @@
         (judgment-holds (is-writable d (k_1 ... k_2) (priv ...) env))
         (where (r_other ...) (list-without (r ...) r_c))
         (where d_new (json-write d (k_1 ... k_2) atom))
-        "perform-write")
+        "write")
    (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 atom))]
         [(r ...) (error "Write forbidden"#;(,(format "Write to ~s of ~s failed: privileges were ~s."
                                  (term k_2) (term (ιʳ (k_1 ...))) (term (priv ...)))))]
-        (judgment-holds (element-of (ιʳ (priv ...) d env (δ ...)) (r ...)))
+        (judgment-holds (element-of (ιʳ (priv ...) d env _) (r ...)))
         (judgment-holds (¬is-writable d (k_1 ... k_2) (priv ...) env))
-        "reject-write-¬w")
+        "¬write-¬w")
    (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 v))]
         [(r ...) (error "Write forbidden")]
         (judgment-holds (¬is-atom v))
-        "reject-write-¬a")
+        "¬write-¬a")
    ))
 
 (define (render-red-replica . filepath)

@@ -56,7 +56,11 @@
       (term (quote ,(gensym)))))
   (define arr-values (shuffle (if (void? must-include) (gen-atoms) (cons must-include (gen-atoms)))))
   (define naturals (stream->list (in-range 0 (length arr-values))))
-  (map (lambda (idx val) (term (,idx := ,val))) naturals arr-values))
+  (map (lambda (idx val)
+         (term (,idx := ,(if (symbol? val)
+                             (term ',val)
+                             val))))
+       naturals arr-values))
 
 (define (list-has-path? path paths)
   (member path paths))
@@ -118,34 +122,16 @@
     (if (list? current-obj)
         (let ((kvs-on-current-level (top-level-kvs current-obj)))
           (define union-candidates (map (lambda (kv)
-                                                (define key (car kv))
-                                                (define json (cdr kv))
-                                                (unionify-1-kv! current-path key json))
-                                              kvs-on-current-level))
+                                          (define key (car kv))
+                                          (define json (cdr kv))
+                                          (unionify-1-kv! current-path key json))
+                                        kvs-on-current-level))
           union-candidates)
         '()))
 
   (define union-candidates (flatten (unionify! '() obj)))
   (report "union-candidates" union-candidates)
   (values union-candidates obj))
-      
-
-(define test-data1 (term
-                    ((a := ((aa := ((aaa := 1)))
-                            (ab := 2))))))
-
-(define test-data2 (term
-                    ((team1
-                      := ((name := "The Fantastical Scouts")
-                          (sightings := ((1674813931967 :=
-                                                        ((location := ((lat := 51.06038) (lng := 4.67201)))
-                                                         (species := "Fly Agaric")
-                                                         (photo := "blob:...")
-                                                         (points := 3))))))))))
-  
-
-
-
 
 ; "mutate-paths" arguments
 ;   - paths: the list of paths to potentially mutate
@@ -175,18 +161,40 @@
     ; replace a single path  by an "=" wildcard
     (define (mutate-= path-segment make-unreadable?)
       (define symbol (gensym))
-      (define replacement-path-segment (term (= [~ ,symbol])))
-      (define kv? (if make-unreadable? #f (term (,symbol := ,path-segment))))
-      (values replacement-path-segment kv?))
+      (define kv-for-user-env #f)
+      (define replacement-path-segment
+        (let ((rand (random 0 100)))
+          (cond ((< rand 10)
+                 (term [> ,rand]))
+                ((< rand 20)
+                 (term [< ,rand]))
+                ((< rand 30)
+                 (term [= ,symbol]))
+                ((< rand 40)
+                 (term [= ,path-segment]))
+                (else
+                 (unless make-unreadable?
+                   (set! kv-for-user-env
+                         (term (,symbol := ,(if (symbol? path-segment)
+                                                (term ',path-segment)
+                                                path-segment)))))
+                 (term [= [~ ,symbol]])))))
+      (report "symbol" symbol)
+      (report "symbol?" (symbol? symbol))
+      (report "path-segment" path-segment)
+      (report "symbol? path-segment" (symbol? path-segment))
+
+      (report "replacement-path-segment" replacement-path-segment)
+      (values replacement-path-segment kv-for-user-env))
 
     ; replace a single path segment by a "∈" wildcard
     (define (mutate-∈ path-segment make-unreadable?)
       (define symbol (gensym))
       (define replacement-path-segment (term (∈ [~ ,symbol])))
-      (define kv (if make-unreadable?
-                     (term (,symbol := ,(gen-array-object)))
-                     (term (,symbol := ,(gen-array-object #:must-include-val path-segment)))))
-      (values replacement-path-segment kv))
+      (define kv-for-user-env (if make-unreadable?
+                                  (term (,symbol := ,(gen-array-object)))
+                                  (term (,symbol := ,(gen-array-object #:must-include-val path-segment)))))
+      (values replacement-path-segment kv-for-user-env))
 
     ; replace a single path segment by a "*" wildcard
     (define (mutate-* path-segment make-unreadable?)
@@ -206,13 +214,10 @@
                       (make-unreadable? (< (random 0 100) unreadable-percent)))
                   (when (and make-unreadable? (not (eq? mutate mutate-*)))
                     (set! paths-made-unreadable (cons path paths-made-unreadable)))
-                  (define-values (replacement-path-segment kv?)
-                    (let ((safe-path-segment (if (symbol? path-segment)
-                                                 (term ',path-segment)
-                                                 path-segment)))
-                      (mutate safe-path-segment make-unreadable?)))
-                  (when kv?
-                    (set! user-environment (cons kv? user-environment)))
+                  (define-values (replacement-path-segment kv-for-user-env?)
+                    (mutate path-segment make-unreadable?))
+                  (when kv-for-user-env?
+                    (set! user-environment (cons kv-for-user-env? user-environment)))
                   replacement-path-segment)
                 path-segment))
           path-segment))
@@ -253,29 +258,6 @@
 
   (define path-selectors (map path->path-selector paths))
   (values path-selectors user-environment paths-made-unreadable flat-path-suggestions))
-
-(define (test)
-  (define d '((z := #t)
-  (2 := 'F)
-  (p := 'lm)
-  (N := ((1 := "rt")))
-  (0 := 'ZW)
-  (J := 'w)
-  (f := 1)
-  (x := ((0 := 1) (3 := #t) (g12049598 := 1)))
-  (g12049596 := #t)
-  (g12049597 := 1)))
-  (define p '(N g12049602))
-  (define privs '((ALLOW role#0 READ OF ((⋃ f g12049597)))
-     (ALLOW role#0 WRITE OF (*))
-     (ALLOW role#0 READ OF (J))
-     (ALLOW role#0 READ OF (x 0))
-     (ALLOW role#0 READ OF (N 1))
-     (ALLOW role#0 WRITE OF (J))
-     (ALLOW role#0 WRITE OF ((= (~ g12049601)) *))
-     (ALLOW role#0 WRITE OF (f))))
-  (define env '())
-  (term (is-writable ,d ,p ,privs ,env)))
 
   
 
@@ -448,7 +430,7 @@
   (define obj (generate-object #:depth object-depth))
   (report "obj" obj)
 
-   ; insert possible unions into the object
+  ; insert possible unions into the object
   (define-values (union-candidates new-obj) (create-unions obj))
   (set! obj new-obj)
   (report "generated object after modifications for adding unions" obj)
