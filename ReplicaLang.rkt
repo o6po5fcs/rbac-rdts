@@ -21,7 +21,7 @@
      (root e)
      (• e k) ; : • c k
      (•! e k e) ; : •! c k v
-     (error string_explanation))
+     (error string))
   (op ::= + - / * and or not < > =)
   (c ::= (ιʳ p))
   (r ::= (ιʳ (priv ...) d env (δ ...)))
@@ -142,7 +142,7 @@
            (term (v ...)))])
 
 (define-metafunction ReplicaLang-inner
-  json-read : ιʳ json p_remaining p_complete -> v or (error string_explanation)
+  json-read : ιʳ json p_remaining p_complete -> v or (error string)
   ;; Reached destination, found atom -> return atom
   [(json-read ιʳ atom () p_complete)
    atom]
