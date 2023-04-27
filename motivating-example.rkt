@@ -122,9 +122,9 @@
          (ALLOW biologist READ OF  (* sightings * location *))
          (ALLOW biologist WRITE OF (* sightings * [⋃ points feedback]))
          (ALLOW user      READ OF  (* sightings * [⋃ photo points]))
-         (ALLOW user      READ OF  ([(eq? (~ my-team))] sightings * feedback))
-         (ALLOW user      WRITE OF ([(eq? (~ my-team))] sightings * (⋃ name type photo)))
-         (ALLOW user      WRITE OF ([(eq? (~ my-team))] sightings * location [⋃ lat lng])))))
+         (ALLOW user      READ OF  ([= (~ my-team)] sightings * feedback))
+         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * [⋃ name type photo]))
+         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * location [⋃ lat lng])))))
 
 
 
