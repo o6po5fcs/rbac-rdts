@@ -104,9 +104,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define user-config_new
-  (term (("alice"   user        "stored-alice"   ((my-team := team1)))
-         ("bob"     user        "stored-bob"     ((my-team := team1)))
-         ("charlie" user        "stored-charlie" ((my-team := team1)))
+  (term (("alice"   user        "stored-alice"   ((my-team := 'team1)))
+         ("bob"     user        "stored-bob"     ((my-team := 'team1)))
+         ("charlie" user        "stored-charlie" ((my-team := 'team1)))
          ("dan"     biologist   "stored-dan"     ())
          ("erin"    biologist   "stored-erin"    ())
          ("frank"   user        "stored-frank"   ()))))
