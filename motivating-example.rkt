@@ -1,131 +1,87 @@
 #lang racket
 
 (require redex/reduction-semantics
-         redex/pict)
-(provide all-roles
-         RDT-data
-         user-config
-         all-privileges)
+         "interactivity/CLI.rkt")
 
 
 
-;;;;;;;;;;;;;;;;;;;;
-;; Security roles ;;
-;;;;;;;;;;;;;;;;;;;;
 
-(define all-roles
-  (term (student teacher SAC)))
 
-;;;;;;;;;;;;;;;;;;;;;;;
-;; Data to replicate ;;
-;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; LeaderLang's initial data ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define RDT-data
-  (term ((courses
-          := ((c1 := ((name := "Structure of Computer Programs 1")
-                      (credits := 6)
-                      (registrations :=
-                                     ((99991 :=
-                                             ((grade := #f)
-                                              (credits-acquired? := #f)))
-                                      (99992 :=
-                                             ((grade := #f)
-                                              (credits-acquired? := #f)))
-                                      (99993 :=
-                                             ((grade := #f)
-                                              (credits-acquired? := #f)))))))
-              (c2 := ((name := "Algorithms and Datastructures 1")
-                      (credits := 6)
-                      (registrations :=
-                                     ((99991 :=
-                                             ((grade := #f)
-                                              (credits-acquired? := #f)))
-                                      (99992 :=
-                                             ((grade := #f)
-                                              (credits-acquired? := #f)))
-                                      (99994 :=
-                                             ((grade := #f)
-                                              (credits-acquired? := #f))))))))))))
+(define data
+  (term ((team1 := ((name := "The Fantastical Scouts")
+                    (sightings := ((1674813931967 :=
+                                                  ((location := ((lat := 51.06038) (lng := 4.67201)))
+                                                   (species := "???")
+                                                   (photo := "blob:...")
+                                                   (points := 3)
+                                                   (feedback := "Do not eat this!")))))))
+         (team2 := ((name := "The Brilliant Bunch")
+                    (sightings := ((1674814951967 :=
+                                                  ((location := ((lat := 51.06066005703071) (lng := 4.674296375850668)))
+                                                   (species := "Spicy fly")
+                                                   (photo := "blob:..."))))))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Read-only data (on leader) ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; LeaderLang's user configuration ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define user-config
-  (term (("alice"   student   "stored-alice"   ((student-id := 99991)))
-         ("bob"     student   "stored-bob"     ((student-id := 99992)))
-         ("charlie" teacher   "stored-charlie" ((own-courses := ((0 := 'c1) (1 := 'c2)))))
-         ("dan"     student   "stored-dan"     ((student-id := 99993)))
-         ("erin"    student   "stored-erin"    ((student-id := 99994)))
-         ("frank"   SAC       "stored-frank"   ()))))
+  (term (("Alice"   user        "stored-AliceKey"   ((my-team := 'team1)))
+         ("Bob"     user        "stored-BobKey"     ((my-team := 'team2)))
+         ("Erin"    biologist   "stored-ErinKey"    ()))))
 
 
-;;;;;;;;;;;;;;;;;;;;;
-;; Security policy ;;
-;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; LeaderLang's Security policy ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define priv1 (term (ALLOW * READ OF (courses * name))))
-(define priv2 (term (ALLOW * READ OF (courses * credits)))) 
-(define priv3 (term (ALLOW student READ OF  (courses * registrations [= (~ student-id)] *))))
-(define priv4 (term (ALLOW teacher WRITE OF (courses [∈ (~ own-courses)] registrations * grade))))
-(define priv5 (term (ALLOW SAC READ OF  (courses * registrations * *))))
-(define priv6 (term (ALLOW SAC WRITE OF (courses * registrations * credits-acquired?))))
-(define all-privileges (term (,priv1 ,priv2 ,priv3 ,priv4 ,priv5 ,priv6)))
+(define roles (term (user biologist)))
 
-
-
-
-
-
-;;;;;;;;;;;;;;;;;;;;
-;; Security roles ;;
-;;;;;;;;;;;;;;;;;;;;
-
-(define all-roles_new
-  (term (student user biologist)))
-
-;;;;;;;;;;;;;;;;;;;;;;;
-;; Data to replicate ;;
-;;;;;;;;;;;;;;;;;;;;;;;
-
-(define RDT-data_new
-  (term ((team1
-          := ((name := "The Fantastical Scouts")
-              (sightings := ((1674813931967 :=
-                                     ((location := ((lat := 51.06038) (lng := 4.67201)))
-                                      (species := "Fly Agaric")
-                                      (photo := "blob:...")
-                                      (points := 3)
-                                      (feedback := "Do not eat this!")))))))
-         (team2 := "omitted for brevity"))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Read-only data (on leader) ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define user-config_new
-  (term (("alice"   user        "stored-alice"   ((my-team := 'team1)))
-         ("bob"     user        "stored-bob"     ((my-team := 'team1)))
-         ("charlie" user        "stored-charlie" ((my-team := 'team1)))
-         ("dan"     biologist   "stored-dan"     ())
-         ("erin"    biologist   "stored-erin"    ())
-         ("frank"   user        "stored-frank"   ()))))
-
-
-;;;;;;;;;;;;;;;;;;;;;
-;; Security policy ;;
-;;;;;;;;;;;;;;;;;;;;;
-
-
-(define all-privileges_new
+(define security-policy
   (term ((ALLOW biologist READ OF  (* sightings * *))
          (ALLOW biologist READ OF  (* sightings * location *))
          (ALLOW biologist WRITE OF (* sightings * [⋃ points feedback]))
+         (ALLOW *         READ OF  (* name))
          (ALLOW user      READ OF  (* sightings * [⋃ photo points]))
          (ALLOW user      READ OF  ([= (~ my-team)] sightings * feedback))
-         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * [⋃ name type photo]))
+         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * [⋃ species photo]))
          (ALLOW user      WRITE OF ([= (~ my-team)] sightings * location [⋃ lat lng])))))
 
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Example ReplicaLang programs ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+#;
+(let ((cr (root my-replica)))
+  (let ((sighting (• (• (• cr team1) sightings) 1674813931967)))
+    (•! sighting species "Fly Agaric")))
+
+
+#;
+(let ((cr (root my-replica)))
+  (let ((sighting (• (• (• cr team2) sightings) 1674814951967)))
+    (•! sighting points 1)))
+
+#;
+(let ((cr (root my-replica)))
+  (let ((sighting (• (• (• cr team2) sightings) 1674814951967)))
+    (•! sighting feedback "This is actually an Andrena (solitary bee)")))
+
+
+#;
+(let ((cr (root my-replica)))
+  (let ((sighting (• (• (• cr team2) sightings) 1674814951967)))
+    (•! sighting points 0)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Start interacting w/ program ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(run-CLI roles data user-config security-policy)

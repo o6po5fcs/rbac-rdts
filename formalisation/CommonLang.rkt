@@ -127,10 +127,10 @@
   #:mode     (is-readable I I I I)
   #:contract (is-readable d p (priv ...) env)
 
-  [(where (p_all ...) (data-to-paths d)) (element-of p_selected (p_all ...)) (is-prefix-of p p_selected)
-   (matches-in-env ps p_selected env) (element-of r/w (READ WRITE))
+  [(where (p_all ...) (data-to-paths d)) (element-of (k_1 ... k_2 ...) (p_all ...))
+   (matches-in-env ps (k_1 ... k_2 ...) env) (element-of r/w (READ WRITE))
    --------------------
-   (is-readable d p (priv_l ... (ALLOW p-role r/w OF ps) priv_r ...) env)])
+   (is-readable d (k_1 ...) (priv_l ... (ALLOW p-role r/w OF ps) priv_r ...) env)])
 
 (define (render-is-readable . filepath)
   ;(metafunction-pict-style 'up-down/vertical-side-conditions)
@@ -152,7 +152,7 @@
       (if (empty? filepath)
           (render-judgment-form is-readable)
           (render-judgment-form is-readable (car filepath))))))
-(render-is-readable)
+;(render-is-readable)
 
 (define-judgment-form
   CommonLang
@@ -246,25 +246,25 @@
   #:mode     (matches-in-env I I I)
   #:contract (matches-in-env ps p env)
   
-  [--------------------------------- "selector-consumed"
+  [--------------------------------- "empty-selector"
    (matches-in-env () () env)]
   [(matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "match-literal-key"
+   --------------------------------- "literal-key"
    (matches-in-env (k_1 p-exp ...) (k_1 k_2 ...) env)]
   [(matches-in-env (k_1 p-exp ...) (k_2 ...) env)
-   --------------------------------- "union-match-first"
+   --------------------------------- "union-first"
    (matches-in-env ([⋃ k_1 k_3 ...] p-exp ...) (k_2 ...) env)]
   [(matches-in-env ([⋃ k_3 ...] p-exp ...) (k_2 ...) env)
-   --------------------------------- "union-match-other"
+   --------------------------------- "union-other"
    (matches-in-env ([⋃ k_1 k_3 ...] p-exp ...) (k_2 ...) env)]
   [(matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "match-wildcard"
+   --------------------------------- "wildcard"
    (matches-in-env (* p-exp ...) (k_1 k_2 ...) env)]
   [(script-holds script-op k_3 k_1) (matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "satisfy-script"
+   --------------------------------- "script"
    (matches-in-env ([script-op k_3] p-exp ...) (k_1 k_2 ...) env)]
   [(env-script-holds script-op k_1 (k ...) env) (matches-in-env (p-exp ...) (k_2 ...) env)
-   --------------------------------- "satisify-env-script"
+   --------------------------------- "env-script"
    (matches-in-env ([script-op (~ k ...)] p-exp ...) (k_1 k_2 ...) env)])
 
 (define (render-matches-in-env . filepath)
@@ -287,7 +287,7 @@
       (if (empty? filepath)
           (render-judgment-form matches-in-env)
           (render-judgment-form matches-in-env (car filepath))))))
-(render-matches-in-env)
+;(render-matches-in-env)
 
 #;(define-metafunction CommonLang
   all-paths-matching : ps json env -> (p ...)

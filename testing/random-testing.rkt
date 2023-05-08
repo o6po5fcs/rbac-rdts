@@ -1,9 +1,9 @@
 #lang racket
 
 (require redex/reduction-semantics
-         "LeaderLang.rkt"
-         "CommonLang.rkt"
-         "ReplicaLang.rkt"
+         "../formalisation/LeaderLang.rkt"
+         "../formalisation/CommonLang.rkt"
+         "../formalisation/ReplicaLang.rkt"
          racket/random
          racket/pretty
          racket/struct)
@@ -88,6 +88,13 @@
   (define (keep? path)
     (term (is-writable ,obj ,path ,privileges ,user-env)))
   (filter keep? paths))
+
+; Given a list of provileges, a user environment, and a flat path, return whether the path is readable according to the given privileges and user environment
+(define (is-readable-path? path-expressions user-env path)
+  ;(displayln "is-readable-path?: ") (displayln (pretty-format path-expressions)) (displayln user-env) (displayln path) (newline)
+  (define (matches? path path-expression)
+      (term (matches-in-env ,path-expression ,path ,user-env)))
+  (ormap (curry matches? path) path-expressions))
 
 
 (struct union-candidate (path-prefix path-full path-expression)
@@ -606,19 +613,27 @@
 
   (define (are-deltas-correct? response)
     (define (is-delta-allowed? delta)
-      ;(display "checking if delta is allowed: ") (displayln delta)
+      (display "checking if delta is allowed: ") (displayln delta)
       (define s-id (second delta))
       (define written-term (last delta))
       (define value-written (last written-term))
       (define path-written (second written-term))
 
       (define user (get-user-from-session s-id))
-      (define role (user-role user))
-      (define role-paths (hash-ref paths-per-role role))
-      (define allowed-read-paths (paths-strictly-readable role-paths))
-      (define allowed-write-paths (paths-writable role-paths))
-      (or (member path-written allowed-write-paths)
-          (member path-written allowed-read-paths)))
+      (define role-name (user-role user))
+      (define role-struct (hash-ref roles role-name))
+      (define user-environment (role-user-environment role-struct))
+      (define all-privileges (get-privileges-for-role privileges-per-role role-name))
+      (define path-selectors-that-can-be-read (map last all-privileges))
+
+      ;(define role-paths (hash-ref paths-per-role role))
+      ;(define allowed-read-paths (paths-strictly-readable role-paths))
+      ;(define allowed-write-paths (paths-writable role-paths))
+      #;(or (member path-written allowed-write-paths)
+          (member path-written allowed-read-paths))
+      (define is-allowed? (is-readable-path? path-selectors-that-can-be-read user-environment path-written))
+      (display "checking if delta is allowed: ") (display delta) (display " ==> ") (displayln is-allowed?)
+      is-allowed?)
     (define deltas (last response))
     (andmap is-delta-allowed? deltas))
   

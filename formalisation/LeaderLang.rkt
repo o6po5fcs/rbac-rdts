@@ -103,7 +103,7 @@
    (judgment-holds (is-writable d p (priv ...) env))
    (where d_new (json-write d p atom))
    (where (s_other ...) (list-without (s ...) (ιˢ ιᵘ)))
-   (where (action ...) (actions-per-session (s_other ...) (user ...) (excerpt ...) d (! p atom)))
+   (where (action ...) (actions-per-session (s_other ...) (user ...) (excerpt ...) d_new (! p atom)))
    (clause-name "Δ from client")]
   #;[(handle-request (user ...) (excerpt ...) d (s ...) (PUSH-Δ ιˢ (! p atom)))
    (d (s_other ...) (REJECT "Changed unwritable path"))
@@ -148,7 +148,7 @@
       (if (empty? filepath)
           (render-metafunction handle-request)
           (render-metafunction handle-request (car filepath))))))
-(render-handle-request)
+;(render-handle-request)
 
 (define-metafunction LeaderLang
   excerpt-for-role : role (priv ...) -> (priv ...)
@@ -186,7 +186,7 @@
     (if (empty? filepath)
         (render-metafunction excerpt-for-role)
         (render-metafunction excerpt-for-role (car filepath)))))
-(render-excerpt-for-role)
+;(render-excerpt-for-role)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -276,7 +276,7 @@
     (if (empty? filepath)
         (render-metafunction readable-projection)
         (render-metafunction readable-projection (car filepath)))))
-(render-readable-projection)
+;(render-readable-projection)
 
 
 (define-judgment-form

@@ -2,8 +2,8 @@
 
 (require redex/reduction-semantics
          redex/pict)
-(require "LeaderLang.rkt")
-(require "motivating-example.rkt")
+(require "../formalisation/LeaderLang.rkt")
+(require "test-data.rkt")
 
 
 ;;;;;;;;;;;;;;;;;;;;;;

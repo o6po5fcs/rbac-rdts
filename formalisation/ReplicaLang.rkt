@@ -4,7 +4,7 @@
          "CommonLang.rkt"
          "primitive-operations.rkt")
 
-(provide ReplicaLang red-replica)
+(provide ReplicaLang red-replica red-replica-malicious)
 
 
 
@@ -88,7 +88,7 @@
         "write")
    (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 atom))]
         [(r ...) (error "Write forbidden"#;(,(format "Write to ~s of ~s failed: privileges were ~s."
-                                 (term k_2) (term (ιʳ (k_1 ...))) (term (priv ...)))))]
+                                                     (term k_2) (term (ιʳ (k_1 ...))) (term (priv ...)))))]
         (judgment-holds (element-of (ιʳ (priv ...) d env _) (r ...)))
         (judgment-holds (¬is-writable d (k_1 ... k_2) (priv ...) env))
         "¬write-¬w")
@@ -122,7 +122,20 @@
         (if (empty? filepath)
             (render-reduction-relation red-replica)
             (render-reduction-relation red-replica (car filepath)))))))
-(render-red-replica)
+;(render-red-replica)
+
+; a malicious client-side version which excludes the security check for writing values
+(define red-replica-malicious
+  (extend-reduction-relation
+   red-replica
+   ReplicaLang-inner
+   (--> [(r ...) (in-hole E (•! (ιʳ (k_1 ...)) k_2 atom))]
+        [((ιʳ (priv ...) d_new env (δ ... (! (k_1 ... k_2) atom))) r_other ...) (in-hole E atom)]
+        (judgment-holds (element-of r_c (r ...)))
+        (where (ιʳ (priv ...) d env (δ ...)) r_c)
+        (where (r_other ...) (list-without (r ...) r_c))
+        (where d_new (json-write d (k_1 ... k_2) atom))
+        "write-malicious")))
 
 (define-metafunction ReplicaLang-inner
   apply-racket-op : op v ... -> v
@@ -161,8 +174,8 @@
   ;; Any other read is invalid
   [(json-read ιʳ json p_1 p_complete)
    (error "Read forbidden"#;(,(format "Could not read path ~s into replica ~s: path does not exist."
-                   (term p_1)
-                   (term ιʳ))))])
+                                      (term p_1)
+                                      (term ιʳ))))])
 
 
 (define-judgment-form

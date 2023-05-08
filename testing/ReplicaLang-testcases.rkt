@@ -1,9 +1,8 @@
 #lang racket
 
-(require redex/reduction-semantics
-         redex/pict)
-(require "ReplicaLang.rkt"
-         (only-in "CommonLang.rkt" json-write))
+(require redex/reduction-semantics)
+(require "../formalisation/ReplicaLang.rkt"
+         (only-in "../formalisation/CommonLang.rkt" json-write))
 
 ;;; This file contains tests to quickly check the basic functionality of ReplicaLang.
 ;;; 
