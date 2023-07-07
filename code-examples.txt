@@ -1,0 +1,35 @@
+Code example 1:
+
+(let ((cr (root "my-replica")))
+  (let ((sighting (• (• (• cr team2) sightings) 1674814951967)))
+    (•! sighting feedback "This is actually an Andrena (solitary bee)")))
+
+
+_______________________________________________________________
+
+Code example 2:
+
+(let ((cr (root "my-replica")))
+  (let ((sighting (• (• (• cr team1) sightings) 1674813931967)))
+    (•! sighting points 11)))
+
+_______________________________________________________________
+
+Code example 3 (for experimentation purposes)
+- 3a: Add a new sighting to team2 (empty object)
+- 3b: Populate the new sighting's species field.
+
+- 3a: 
+
+(let ((cr (root "my-replica")))
+  (let ((sightings (• (• cr team2) sightings)))
+    (•! sightings 1688558604 ())))
+
+- 3b:
+
+(let ((cr (root "my-replica")))
+  (let ((sighting (• (• (• cr team2) sightings) 1688558604)))
+    (•! sighting species "Ailurus fulgens")))
+
+_______________________________________________________________
+

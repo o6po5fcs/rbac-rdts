@@ -1,26 +1,32 @@
-fixed bugs:
+Bugs found through randomised testing: 
+
+
 
 2022/09/02: 
+minor issue: edge case omitted in formalism; but solution trivial
+Solution: key-is-valid handled only the case where the user is known.
+
+
 check-metafunction: ./secure-replication/LeaderLangRandomTesting.rkt:88
 checking (() () () () (LOGIN "MySy" "M")) raises an exception
 . . key-is-valid: no clauses matched for (key-is-valid () MySy M)
 
-Solution: key-is-valid handled only the case where the user is known.
-MINOR.1[edge case omitted in formalism; but solution trivial]
+
 
 
 _____________________________________________________________________________________
 
 
 2022/09/02:
+minor issue: edge case omitted in formalism; but problem could not exist in normal implementation
+Solution: handle-request did not handle the case where a user performs GET-REPLICA but the provided session did not exist.
+
+
 
 check-metafunction: ./secure-replication/LeaderLangRandomTesting.rkt:88
 checking (() ((V := ())) () () (GET-REPLICA "cfmM")) raises an exception
 . . handle-request: no clauses matched for (handle-request () ((V := ())) () () (GET-REPLICA cfmM))
 
-Solution: handle-request did not handle the case where a user performs GET-REPLICA but the provided session did not exist.
-
-MINOR.2[edge case omitted in formalism; but problem could not exist in normal implementation]
 
 
 
@@ -29,7 +35,9 @@ ________________________________________________________________________________
 
 
 2022/09/06:
-A random test tries to read a key from an object that does not exist, resulting in an error
+minor issue: A random test tries to read a key from an object that does not exist, resulting in an error. Edge case omitted in formalism; but solution trivial (include the error-condition in the formalism)
+Solution: add language-level errors (an "error" term) to be able to reduce bad expressions to something (error)
+
 
 obj: ((0 := nEcIz))
 all-paths: ((0))
@@ -42,17 +50,18 @@ checking: (((T () () () ())) (• (T ()) 0))
 . . json-read: no clauses matched for (json-read T () (0) (0))
 
 
-Solution: add language-level errors (an "error" term) to be able to reduce bad expressions to something (error)
 
-MINOR.3[edge case omitted in formalism; but solution trivial (include the error-condition in the formalism)]
 
 
 _____________________________________________________________________________________
 
 
 2022/09/06
+minor issue: A random test generates an object with duplicate keys, and in the language this causes a certain pattern match of a metafunction (json-read) to return multiple results instead of 1. Edge case due to use of lists instead of sets in formalism (because of PLT Redex); but problem would not exist in normal implementation
+Solution: identical keys in an object should not be possible with correct use of the language, but we solved the problem by only considering the first occurrence.
 
-A random test generates an object with duplicate keys, and in the language this causes a certain pattern match of a metafunction (json-read) to return multiple results instead of 1.
+
+
 
 obj: ((#t := 1) (#t := ()))
 readable-paths: ((#t))
@@ -65,9 +74,6 @@ checking: (((T () ((#t := 1) (#t := ())) () ())) (• (T ()) #t))
 . . json-read: clause #3 (counting from 0) matched (json-read T ((#t := 1) (#t := ())) (#t) (#t)) 2 different ways and returned 2 different results
 
 
-Solution: identical keys in an object should not be possible with correct use of the language, but we solved the problem by only considering the first occurrence.
-
-MINOR.4[edge case due to use of lists instead of sets in formalism (because of PLT Redex); but problem would not exist in normal implementation]
 
 
 _____________________________________________________________________________________
@@ -75,7 +81,9 @@ ________________________________________________________________________________
 
 
 2022/09/09
-Security bug: when a user has reading rights for a certain glob with a wildcard (e.g., (* JIvt) in the example below), then they only have reading rights for the field JIvt in any subobject of the root, but *not* all fields of the root itself. However, the projected object did actually provide all fields of the root, e.g., below (7 := 0) is a part of the projected object, and is by definition readable by clients even though it shouldn't be.
+Security bug: when a user has reading rights for a certain glob with a wildcard (e.g., (* JIvt) in the example below), then they only have reading rights for the field JIvt in any subobject of the root, but *not* all fields of the root itself. However, the projected object did actually provide all fields of the root, e.g., below (7 := 0) is a part of the projected object, and is by definition readable by clients even though it shouldn't be.. I.e., definition of what is a readable projection was wrong, giving read access to some fields based on an erroneous interpretation of a wildcard
+Solution: fix the bug in the projection of objects such that the offending fields are excluded.
+
 
 ### --- attempt 82 --- ###
 obj: ((7 := 0) (r := ((eFeLzqxXp := JJ) (JIvt := #t))) (#t := M))
@@ -92,9 +100,7 @@ projected-obj: '((7 := 0) ("r" := (("JIvt" := #t))) (#t := M))
 ### --- testing programs with nonreadable paths --- ###
 . . counterexample found:  '(((g523378 () ((7 := 0) ("r" := (("JIvt" := #t))) (#t := M)) () ())) (• (g523378 ()) 7)) '((((g523378 () ((7 := 0) ("r" := (("JIvt" := #t))) (#t := M)) () ())) 0))
 
-Solution: fix the bug in the projection of objects such that the offending fields are excluded.
 
-MAJOR.1[definition of what is a readable projection was wrong, giving read access to some fields based on an erroneous interpretation of a wildcard]
 
 
 _____________________________________________________________________________________
@@ -102,11 +108,9 @@ ________________________________________________________________________________
 
 
 2022/09/11(?)
-Randomized found a big where PLT redex objects are generated with keywords that are valid in 1 language (e.g., ReplicaLang) but not in another language (e.g., LeaderLang).
-
+minor issue: Randomized found a bug where PLT redex objects are generated with keywords that are valid in 1 language (e.g., ReplicaLang) but not in another language (e.g., LeaderLang). I.e., improper definition of what is an identifier in the formalism; but simple solution (reserve keywords earlier)
 Solution: keywords that are reserved in both languages are moved to CommonLang, such that only objects are generated that are valid in both ReplicaLang and LeaderLang.
 
-MINOR.5[improper definition of what is an identifier in the formalism; but simple solution (reserve keywords earlier)]
 
 
 _____________________________________________________________________________________
@@ -114,8 +118,8 @@ ________________________________________________________________________________
 
 
 2022/09/30
+major issue (related to previous major issue): Found a bug where the projecting of an object can be wrong (only found after thousands of tests), where the projection inserts an empty object where there shouldn't be one (empty objects are not allowed). E.g., "(1 := ())" in the code below. I.e., the definition of what is a readable projection was still wrong, including an empty subobject based on an erroneous interpretation of a wildcard
 
-Found a bug where the projecting of an object can be wrong (only found after thousands of tests), where the projection inserts an empty object where there shouldn't be one (empty objects are not allowed). E.g., "(1 := ())" in the code below.
 
 
 ### --- attempt 1671 --- ###
@@ -142,7 +146,6 @@ projected-obj: '((Xj := ((IO := "") (a := #f))) (0 := #f) (1 := ()) (C := #t))
 ### --- testing programs with randomly generated paths --- ###
 . . json-read: codomain test failed for (), call was (json-read g1615505 () () (1))
 
-MAJOR.2[definition of what is a readable projection was still wrong, including an empty subobject based on an erroneous interpretation of a wildcard]
 
 
 _____________________________________________________________________________________
@@ -152,7 +155,7 @@ ________________________________________________________________________________
 
 2022/10/14
 
-json-read metafunction returned a cursor when it should have returned a value, due to it being badly modified after a refactoring of the definition of values and atoms
+minor issue: json-read metafunction returned a cursor when it should have returned a value, due to it being badly modified after a refactoring of the definition of values and atoms
 
 
 ### --- attempt 2 --- ###
@@ -185,7 +188,7 @@ ________________________________________________________________________________
 
 2023/03/02
 
-Randomized testing identified an implementation oversight (after revising the security policy specification language) where fields that do not exist within an object, but which can be written to according to the security policy, could not be written to (the program is rejected whereas the field should be added to the object)
+minor issue: Randomized testing identified an implementation oversight (after revising the security policy specification language) where fields that do not exist within an object, but which can be written to according to the security policy, could not be written to (the program is rejected whereas the field should be added to the object)
 
 ### --- attempt 0 --- ###
 *** obj:
@@ -242,7 +245,7 @@ ________________________________________________________________________________
 
 2023/03/06
 
-Randomized testing identified an error where a path was (correctly) marked as writable, but a program that tries to actually write to said path erroneously rejected the write action. The problem was related to bad/inconsistent handling of quoted symbols in paths, because symbols in the policy language do not have to be quoted, but symbols in the user environment do have to be quoted.
+minor issue: Randomized testing identified an error where a path was (correctly) marked as writable, but a program that tries to actually write to said path erroneously rejected the write action. The problem was related to bad/inconsistent handling of quoted symbols in paths, because symbols in the policy language do not have to be quoted, but symbols in the user environment do have to be quoted.
 
 ### --- attempt 441 --- ###
 *** obj:

@@ -18,6 +18,6 @@ secure-replication/
 │  ├─ test-data.rkt               - Some test data used for manual testing
 ├─ motivating-example.rkt         - The motivating example used in the paper, which can be interacted with.
 ├─ bugs-randomized-testing.txt    - Report of the bugs in the formalism that were caught via randomized testing
-├─ read-test-128.sh               - Script to quickly execute ./testing/random-testing.rkt 128 times and log their output to ./logs/reads-X.txt
-├─ write-test-128.sh              - Script to quickly execute ./testing/random-testing.rkt 128 times and log their output to ./logs/writes-X.txt
+├─ read-tests.sh                  - Script to quickly execute randomised read tests and log their output to ./logs/reads-X.txt. There are 2 mandatory command-line arguments, namely the number of cores and the number of iterations per core (e.g., `./read-tests.sh 128 7813`)
+├─ write-tests.sh                 - Script to quickly execute randomised write tests and log their output to ./logs/writes-X.txt. There are 2 mandatory command-line arguments, namely the number of cores and the number of iterations per core (e.g., `./write-tests.sh 128 7813`)
 ```

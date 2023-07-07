@@ -1,5 +1,20 @@
 #lang racket
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;                                                                                                    ;;;
+;;; Test data                                                                                 ;;;
+;;;                                                                                                    ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; This file implements the (old and new) motivating example, mainly for use in the testcases.        ;;;
+;;;                                                                                                    ;;;
+;;; More concretely, this file specifies:                                                              ;;;
+;;;    - the data that will be in the SRDT,                                                            ;;;
+;;;    - the user data that will be used to authenticate users and to populate their user environment, ;;;
+;;;    - the list of roles,                                                                            ;;;
+;;;    - the security policy, as a list of privileges, and                                             ;;;
+;;;    - (commented out, to copy into the CLI) some suggestions of ReplicaLang programs to try.        ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (require redex/reduction-semantics)
 (provide all-roles
          RDT-data
@@ -7,17 +22,16 @@
          all-privileges)
 
 
-
-;;;;;;;;;;;;;;;;;;;;
-;; Security roles ;;
-;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Courses Use Case: Security roles ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define all-roles
   (term (student teacher SAC)))
 
-;;;;;;;;;;;;;;;;;;;;;;;
-;; Data to replicate ;;
-;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Courses Use Case: Data to replicate ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define RDT-data
   (term ((courses
@@ -46,9 +60,9 @@
                                              ((grade := #f)
                                               (credits-acquired? := #f))))))))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Read-only data (on leader) ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Courses Use Case: Read-only data (on leader) ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define user-config
   (term (("alice"   student   "stored-alice"   ((student-id := 99991)))
@@ -59,9 +73,9 @@
          ("frank"   SAC       "stored-frank"   ()))))
 
 
-;;;;;;;;;;;;;;;;;;;;;
-;; Security policy ;;
-;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Courses Use Case: Security policy ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define priv1 (term (ALLOW * READ OF (courses * name))))
 (define priv2 (term (ALLOW * READ OF (courses * credits)))) 
@@ -76,16 +90,17 @@
 
 
 
-;;;;;;;;;;;;;;;;;;;;
-;; Security roles ;;
-;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Collaborative Spotting App Use Case: Security roles ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define all-roles_new
   (term (student user biologist)))
 
-;;;;;;;;;;;;;;;;;;;;;;;
-;; Data to replicate ;;
-;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Collaborative Spotting App Use Case: Data to replicate ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define RDT-data_new
   (term ((team1
@@ -98,9 +113,10 @@
                                       (feedback := "Do not eat this!")))))))
          (team2 := "omitted for brevity"))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Read-only data (on leader) ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Collaborative Spotting App Use Case: Read-only data (on leader) ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define user-config_new
   (term (("alice"   user        "stored-alice"   ((my-team := 'team1)))
@@ -111,20 +127,15 @@
          ("frank"   user        "stored-frank"   ()))))
 
 
-;;;;;;;;;;;;;;;;;;;;;
-;; Security policy ;;
-;;;;;;;;;;;;;;;;;;;;;
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Collaborative Spotting App Use Case: Security policy ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define all-privileges_new
   (term ((ALLOW biologist READ OF  (* sightings * *))
          (ALLOW biologist READ OF  (* sightings * location *))
-         (ALLOW biologist WRITE OF (* sightings * [⋃ points feedback]))
-         (ALLOW user      READ OF  (* sightings * [⋃ photo points]))
+         (ALLOW biologist WRITE OF (* sightings * [∪ points feedback]))
+         (ALLOW user      READ OF  (* sightings * [∪ photo points]))
          (ALLOW user      READ OF  ([= (~ my-team)] sightings * feedback))
-         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * [⋃ name type photo]))
-         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * location [⋃ lat lng])))))
-
-
-
-
+         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * [∪ name type photo]))
+         (ALLOW user      WRITE OF ([= (~ my-team)] sightings * location [∪ lat lng])))))

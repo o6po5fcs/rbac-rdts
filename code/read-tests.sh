@@ -1,9 +1,12 @@
 #!/bin/bash
 
+if [ ! -d "logs" ]; then
+  mkdir logs
+fi
 
 # run processes and store pids in array
-for i in {1..128}; do
-    ../racket/bin/racket ./testing/random-testing.rkt 2>&1 > ./logs/writes-${i}.txt &
+for ((i=1;i<=$1;i++)); do
+    racket -l racket/base -t "./testing/random-testing.rkt" -e "(run-read-tests $2)" 2>&1 > ./logs/reads-${i}.txt &
     pids[${i}]=$!
 done
 
@@ -13,17 +16,16 @@ for pid in ${pids[*]}; do
 done
 
 # loop through the log files
-for i in {1..128}
-do
+for ((i=1;i<=$1;i++)); do
   # get the last line of each log file
-  last_line=$(tail -n 1 ./logs/writes-$i.txt)
+  last_line=$(tail -n 1 ./logs/reads-$i.txt)
   # check if the last line ends with "OK"
   if [[ $last_line != *"OK" ]]; then
     # output error and exit the loop
-    echo "error: ./logs/writes-$i.txt"
+    echo "error: ./logs/reads-$i.txt"
     exit 1
   fi
 done
 
 # output all good if no error was found
-echo "Write tests succeeded"
+echo "Read tests succeeded"

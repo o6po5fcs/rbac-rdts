@@ -1,5 +1,15 @@
 #lang racket
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;                                                                  ;;;
+;;; Command-Line Interface                                           ;;;
+;;;                                                                  ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; This file implements the command-line interface which integrates ;;;
+;;; LeaderLang and ReplicaLang into an interactive process.          ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (require redex/reduction-semantics
          (only-in "../formalisation/CommonLang.rkt"
                   json-write)
@@ -13,9 +23,12 @@
                   red-replica-malicious))
 
 (provide run-CLI)
-;;;;;;;;;;;
-;; "CLI" ;;
-;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; CLI abstractions ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
 (define (stored-key->provided-key key)
   (define stored-key-prefix    "stored-")
   (define provided-key-prefix  "provided-")
@@ -35,6 +48,9 @@
 (define (report-output str . args)
   (apply report (cons (string-append ">>> " str) args)))
 
+(define (prompt-user #:prompt [prompt ""])
+  (display prompt) (read))
+
 (define (get-user-name user) (first user))
 (define (get-user-role user) (second user))
 (define (get-user-stored-key user) (third user))
@@ -46,13 +62,13 @@
 (define LeaderLang-get-sessions fourth)
 (define LeaderLang-get-answer (compose first last))
 (define (is-LeaderLang-accept-login-response? response)
-  (redex-match LeaderLang (ACCEPT ((ACCEPT-LOGIN ιˢ))) response))
+  (redex-match LeaderLang (ACCEPT ((ACCEPT-LOGIN ι))) response))
 (define (get-LeaderLang-accept-login-session-id response)
   (if (is-LeaderLang-accept-login-response? response)
       (last (first (second response)))
       (error "response does not seem to be a correct ACCEPT/ACCEPT-LOGIN response" response)))
 (define (is-LeaderLang-init-response? response)
-  (redex-match LeaderLang (ACCEPT ((INIT ιˢ (priv ...) d env))) response))
+  (redex-match LeaderLang (ACCEPT ((INIT ι (priv ...) d env))) response))
 (define (get-LeaderLang-init-values response)
   (if (is-LeaderLang-init-response? response)
       (values (third (first (second response)))
@@ -75,48 +91,43 @@
 (define (ReplicaLang-get-replica-name replica)
   (first replica))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Auxiliary metafunction: extend cursor c by descending into key k. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define-metafunction ReplicaLang
   extend-cursor : c k -> c
-  [(extend-cursor (ιʳ (k_1 ...)) k)
-   (ιʳ (k_1 ... k))])
+  [(extend-cursor (ι (k_1 ...)) k)
+   (ι (k_1 ... k))])
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Auxiliary metafunction: retrieve the path from a cursor. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-metafunction ReplicaLang
   cursor-path : c -> (k ...)
-  [(cursor-path (ιʳ (k ...)))
+  [(cursor-path (ι (k ...)))
    (k ...)])
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Auxiliary metafunction: retrieve the data from a replica object. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-metafunction ReplicaLang
   replica-data : r -> d
-  [(replica-data (ιʳ (priv ...) d env (δ ...)))
+  [(replica-data (ι (priv ...) d env (δ ...)))
    d])
 
-(define-metafunction ReplicaLang
-  read-object : json c p_complete -> v or json or (error string)
-  ;; Reached destination, found atom -> return atom
-  [(read-object atom (ιʳ ()) p_complete)
-   atom]
-  ;; Reached destination, found empty object -> return empty object
-  [(read-object () (ιʳ ()) p_complete)
-   ()]
-  ;; Reached destination, found json -> return cursor to complete path
-  [(read-object json (ιʳ ()) p_complete)
-   json]
-  ;; Not at destination, found json -> try with first key/value pair
-  [(read-object ((k_1 := json_1) kj_2 ...) (ιʳ (k_1 k_3 ...)) p_complete)
-   (read-object json_1 (ιʳ (k_3  ...)) p_complete)]
-  ;; Not at destination, found json, first key doesn't match -> recurse
-  [(read-object (kj_1 kj_2 ...) (ιʳ (k ...)) p_complete)
-   (read-object (kj_2 ...) (ιʳ (k ...)) p_complete)]
-  ;; Any other read is invalid
-  [(read-object json (ιʳ p_1) p_complete)
-   (error "Read forbidden" (,(format "Could not read path ~s into replica ~s: path does not exist."
-                                     (term p_1)
-                                     (term ιʳ))))])
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Starts the interactive REPL for a certain configuration. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (run-CLI roles data user-config security-policy)
-  (displayln "<<< interacting with replicas >>>")
+  (displayln "<<< SRDT Interaction Simulator >>>")
   
   (define (exit)
     (report-output "Stopping program."))
@@ -151,13 +162,13 @@
     (map car json))
   
   (define (make-new-ReplicaLang-program policy-excerpt data user-env)
-    (define replica-name 'my-replica)
+    (define replica-name "my-replica")
     (define replicas (term ((,replica-name ,policy-excerpt ,data ,user-env ()))))
     (define program (term (,replicas (root ,replica-name))))
     (car (apply-reduction-relation* red-replica program)))
 
   (define (ReplicaLang-change-program-data old-program new-data)
-    ; (ιʳ (priv ...) d env (δ ...))
+    ; (ι (priv ...) d env (δ ...))
     (define-values (replica-name policy-excerpt old-data user-env deltas) (apply values (ReplicaLang-get-program-replica old-program)))
     (define old-expression (ReplicaLang-get-program-expression old-program))
     (define replicas (term ((,replica-name ,policy-excerpt ,new-data ,user-env ,deltas))))
@@ -165,7 +176,7 @@
     program)
 
   (define (ReplicaLang-clear-deltas program)
-    ; (ιʳ (priv ...) d env (δ ...))
+    ; (ι (priv ...) d env (δ ...))
     (define-values (replica-name policy-excerpt data user-env deltas) (apply values (ReplicaLang-get-program-replica program)))
     (define expression (ReplicaLang-get-program-expression program))
     (define replicas (term ((,replica-name ,policy-excerpt ,data ,user-env ()))))
@@ -197,14 +208,14 @@
     (define replica-data (term (replica-data ,replica)))
     
     (let program-loop ()
-      (report-prompt "Provide a ReplicaLang program expression. The name of the current replica is \"~a\" (without quotes), which can be used in the \"root\" cursor expression.\nCursor expressions use the following symbols: • and •! (for copy-paste purposes)." replica-name)
-      (define user-expression (read))
+      (report-prompt "Provide a ReplicaLang program expression. The name of the current replica is \"~a\" (with quotes), which can be used in the \"root\" cursor expression.\nCursor expressions use the following symbols: • and •! (for copy-paste purposes)." replica-name)
+      (define user-expression (prompt-user #:prompt "Enter a ReplicaLang program >"))
       (if (not (redex-match ReplicaLang e user-expression))
           (begin (report-output "The provided expression is not a correct ReplicaLang expression. Try again.")
                  (program-loop))
           (let* ((program-to-execute (make-ReplicaLang-program ReplicaLang-program user-expression))
                  (new-ReplicaLang-program (car (apply-reduction-relation* red-replica program-to-execute))))
-            (report-output "Executing ReplicaLang program:\n ~a" (pretty-format new-ReplicaLang-program))
+            (report-output "Executing ReplicaLang program... It reduced to:\n ~a" (pretty-format new-ReplicaLang-program))
             (define evaluation-result (ReplicaLang-get-program-expression new-ReplicaLang-program))
             (report-output "The expression evaluated to: ~v" evaluation-result)
             new-ReplicaLang-program))))
@@ -215,14 +226,44 @@
     (define replica-data (term (replica-data ,replica)))
     
     (let program-loop ()
-      (report-prompt "Provide a ReplicaLang program expression. The name of the current replica is \"~a\" (without quotes), which can be used in the \"root\" cursor expression.\nCursor expressions use the following symbols: • and •! (for copy-paste purposes)." replica-name)
-      (define user-expression (read))
+      (report-prompt "Provide a ReplicaLang program expression. The name of the current replica is \"~a\" (with quotes), which can be used in the \"root\" cursor expression.\nCursor expressions use the following symbols: • and •! (for copy-paste purposes)." replica-name)
+      (define user-expression (prompt-user #:prompt "Enter a (malicious) ReplicaLang program >"))
       (if (not (redex-match ReplicaLang e user-expression))
           (begin (report-output "The provided expression is not a correct ReplicaLang expression. Try again.")
                  (program-loop))
           (let* ((program-to-execute (make-ReplicaLang-program ReplicaLang-program user-expression))
-                 (new-ReplicaLang-program (cadr (apply-reduction-relation* red-replica-malicious program-to-execute))))
-            (report-output "Executing ReplicaLang program without client-side security checks:\n ~a" (pretty-format new-ReplicaLang-program))
+                 (reduction-results (apply-reduction-relation* red-replica-malicious program-to-execute))
+                 (number-of-reduction-results (length reduction-results))
+                 (new-ReplicaLang-program #f))
+            ; try to figure out automatically which reduction result is the malicious one
+            ; if there is only 1 reduction result, just take that reduction result whatever it is (the program might not have performed a write to a replica)
+            ; if there are multiple reduction results, one is potentially a "write forbidden" result, and the other a succesful write.
+            ;  - in this case the malicious program is the succesful write and the other is just the well-behaved reduction result.
+            ;  - if there are multiple reduction results and both are error or non-error, just complain to the user.
+            (cond ((= number-of-reduction-results 1)
+                   (set! new-ReplicaLang-program (car reduction-results)))
+                  ((= number-of-reduction-results 2)
+                   (let* ((first-program (car reduction-results))
+                          (first-evaluation-result (ReplicaLang-get-program-expression first-program))
+                          (first-is-error? (redex-match ReplicaLang (error string) first-evaluation-result))
+                         (second-program (cadr reduction-results))
+                         (second-evaluation-result (ReplicaLang-get-program-expression second-program))
+                         (second-is-error? (redex-match ReplicaLang (error string) second-evaluation-result)))
+                     (cond ((and first-is-error? second-is-error?)
+                            (report-output "!!! Unexpected situation: the given ReplicaLang program reduced to 2 alternative results, but the evaluation result of both is an error expression !!!")
+                            (set! new-ReplicaLang-program first-program))
+                           ((and first-is-error? (not second-is-error?))
+                            (set! new-ReplicaLang-program second-program))
+                           ((and (not first-is-error?) second-is-error?)
+                            (set! new-ReplicaLang-program first-program))
+                           ((and (not first-is-error?) (not second-is-error?))
+                            (report-output "!!! Unexpected situation: the given ReplicaLang program reduced to 2 alternative results, but neither evaluated to an error expression !!!")
+                            (set! new-ReplicaLang-program first-program)))))
+                  (else
+                   (report-output "!!! Unexpected situation: the given ReplicaLang program reduced to ~a alternative results. Expected 1 or 2, but not ~a !!!" number-of-reduction-results number-of-reduction-results)
+                   (set! new-ReplicaLang-program (car reduction-results))))
+                               
+            (report-output "Executing ReplicaLang program without client-side security checks... It reduced to:\n ~a" (pretty-format new-ReplicaLang-program))
             (define evaluation-result (ReplicaLang-get-program-expression new-ReplicaLang-program))
             (report-output "The expression evaluated to: ~v" evaluation-result)
             new-ReplicaLang-program))))
@@ -238,14 +279,13 @@
                        (when (equal? user-session session-id)
                          (set! user-name name))))
       user-name)
+    
     (define leader-changes (make-vector (length deltas)))
     (for ([i (in-range 0 (length deltas))])
       (define delta (list-ref deltas i))
       (define PUSHDELTA-program
         (make-LeaderLang-program LeaderLang-program (term (PUSH-Δ ,session-id ,delta))))
-      ;(report-output "Executing LeaderLang program:\n~a" (pretty-format PUSHDELTA-program))
       (define LeaderLang-response (run-and-update-LeaderLang-program! PUSHDELTA-program))
-      ;(report-output "LeaderLang response:\n~a" (pretty-format LeaderLang-response))
       ; answer is something of the form
       ;'(ACCEPT
       ;  ((PUSH-Δ
@@ -266,10 +306,8 @@
                            (existing-deltas (hash-ref leader-deltas-table user-name)))
                       (hash-set! leader-deltas-table user-name (append existing-deltas (list delta)))))
                   response))
-      ;(report-output "LeaderLang answer\n~a" (pretty-format response))
       (vector-set! leader-changes i response))
-    ;(report-output "LeaderLang program:\n~a" (pretty-format LeaderLang-program))
-    ;(report-output "Leader changes:\n~a" (pretty-format leader-changes))
+    
     (define report (string-join
                     (for/list ([i (in-range 0 (vector-length leader-changes))])
                       (define delta (list-ref deltas i))
@@ -291,7 +329,10 @@
                                               (format "    Sent to: ~a (when they next synchronize with the leader)" user-name))
                                             "\n")))))
                     "\n"))
-    (report-output "Leader updates:\n~a" report)
+
+    (report-output "~a changes pushed to the leader" (length deltas))
+    (unless (empty? deltas)
+        (report-output "Leader updates:\n~a" report))
     (ReplicaLang-clear-deltas ReplicaLang-program))
 
   (define (pull-changes-from-leader initial-ReplicaLang-program user-name)
@@ -304,9 +345,9 @@
                (ReplicaLang-change-program-data latest-ReplicaLang-program new-data))
              initial-ReplicaLang-program
              deltas))
+    (report-output "~a changes pulled from the leader" (length deltas))
     (hash-set! leader-deltas-table user-name '())
     new-ReplicaLang-program)
-    
   
   (define (interact-with-replica user-name)
     (let main-replica-interaction-loop ()
@@ -318,12 +359,12 @@
       (report-option "[~a] Display ~a's security policy excerpt" 1 user-name)
       (report-option "[~a] Display ~a's offline changes to their local replica (~a changes)" 2 user-name number-of-offline-changes)
       (report-option "[~a] Execute a ReplicaLang program as ~a" 3 user-name)
-      (report-option "[~a] Execute a malicious ReplicaLang program as ~a (unstable)" 4 user-name)
+      (report-option "[~a] Execute a malicious ReplicaLang program as ~a" 4 user-name)
       (report-option "[~a] Push ~a's offline changes to the leader (~a changes)" 5 user-name number-of-offline-changes)
       (report-option "[~a] Pull changes for ~a from the leader (~a changes)" 6 user-name (length (hash-ref leader-deltas-table user-name)))
       (report-option "[~a] Go back to the main menu" 7)
 
-      (let ((input (read)))
+      (let ((input (prompt-user #:prompt "Enter a number >")))
         (cond ((not (number? input))
                (report-prompt "Input must be a number.")
                (main-replica-interaction-loop))
@@ -362,18 +403,11 @@
     (define user-name (get-user-name user))
     (let* ((policy-excerpt (get-policy-excerpt (get-user-role user) security-policy))
            (login-response (LeaderLang-login user policy-excerpt data)))
-      ;(pretty-print login-response)
       (define LOGIN-answer (LeaderLang-get-answer login-response))
-      ;(pretty-print LOGIN-answer)
       (define session-id (get-LeaderLang-accept-login-session-id LOGIN-answer))
-      ;(pretty-print session-id)
       (define GET-REPLICA-response (LeaderLang-get-replica login-response session-id))
       (define GET-REPLICA-answer (LeaderLang-get-answer GET-REPLICA-response))
-      ;(pretty-print GET-REPLICA-answer)
       (define-values (policy-excerpt replica-data user-environment) (get-LeaderLang-init-values GET-REPLICA-answer))
-      ;(pretty-print policy-excerpt)
-      ;(pretty-print replica-data)
-      ;(pretty-print user-environment)
       (values session-id (make-new-ReplicaLang-program policy-excerpt replica-data user-environment))))
 
   (define user-table (make-hash))
@@ -381,7 +415,6 @@
   (define leader-deltas-table (make-hash))
     
   (for-each (lambda (user)
-              #;("Alice"   user        "stored-AliceKey"   ((my-team := 'team1)))
               (define-values (session-id ReplicaLang-program) (login-user user))
               (hash-set! user-table (get-user-name user) ReplicaLang-program)
               (hash-set! session-table (get-user-name user) session-id)
@@ -396,6 +429,9 @@
     (hash-for-each leader-deltas-table
                    (lambda (user-name deltas)
                      (displayln (format "~a (~a changes stored on the leader that have not yet been pulled by ~a): \n~a" user-name (length deltas) user-name (pretty-format deltas))))))
+
+  (report-output "The full program data is:\n~a\n" (pretty-format data))
+  (report-output "The full security policy is:\n~a\n" (pretty-format security-policy))
   
   (let main-interaction-loop ()
     (define number-of-users (length user-config))
@@ -415,7 +451,7 @@
     (report-option "[~a] Exit program" (+ number-of-users 2))
 
     (let loop ()
-      (define selected (read))
+      (define selected (prompt-user #:prompt "Enter a number >"))
       (if (not (number? selected))
           (loop)
           (cond ((< selected number-of-users)

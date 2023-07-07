@@ -1,5 +1,14 @@
 #lang racket
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;                                           ;;;
+;;; LeaderLang Testcases                      ;;;
+;;;                                           ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; This file contains tests to quickly check ;;;
+;;; the basic functionality of LeaderLang.    ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (require redex/reduction-semantics
          redex/pict)
 (require "../formalisation/LeaderLang.rkt")
@@ -30,9 +39,9 @@
 (define privs-for-role (cadddr projection-result))
 
 
-;;;;;;;;;;;;;;;;;;;
-;; Running phase ;;
-;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Replica management phase ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define example-δ
   (term (! (courses c1 registrations 99991 grade) 20)))
@@ -47,7 +56,6 @@
   (test-request-handling-w/-data requests expected-sessions expected-results RDT-data))
 
 (define (test-request-handling-w/-data requests expected-sessions expected-results expected-data)
-  ; ((user ...) (excerpt ...) d (s ...) (request ...) (result ...))
   (test-->>
    leader-request-red-rel
    (term (,user-config ,privs-for-role ,RDT-data () ,requests ()))
@@ -285,5 +293,9 @@
                                             ((grade := #f)
                                              (credits-acquired? := #f))))))))))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Report test results. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (test-results)

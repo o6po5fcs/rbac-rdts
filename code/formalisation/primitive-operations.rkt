@@ -1,5 +1,14 @@
 #lang racket
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;                                                       ;;;
+;;; Primitive Operations                                  ;;;
+;;;                                                       ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Provides the Racket implementation of some primitive ;;;
+;;; operations used in LeaderLang and ReplicaLang.       ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (provide logical-and logical-or key-matches?)
 
 (define (logical-and . args)

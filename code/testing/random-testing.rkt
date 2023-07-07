@@ -1,5 +1,17 @@
 #lang racket
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;                                              ;;;
+;;; Randomized Testing                           ;;;
+;;;                                              ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; This file implements the randomized testing. ;;;
+;;;                                              ;;;
+;;; More concretely, this file specifies:        ;;;
+;;;    - the read tests, and                     ;;;
+;;;    - the write tests.                        ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (require redex/reduction-semantics
          "../formalisation/LeaderLang.rkt"
          "../formalisation/CommonLang.rkt"
@@ -7,6 +19,8 @@
          racket/random
          racket/pretty
          racket/struct)
+
+(provide run-read-tests run-write-tests)
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utility functions ;;
@@ -19,11 +33,18 @@
   (printf "*** ~a:~n" name)
   (pretty-print t))
 
+(define (remove-last l)
+  (if (empty? l)
+      '()
+      (drop-right l 1)))
 
 
-;; Clean up invalid (but randomly generatable) json, with:
-;;   - duplicate keys at the same level,
-;;   - empty objects
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Clean up invalid (but randomly generatable) json, with: ;;
+;;   - duplicate keys at the same level, and               ;;
+;;   - empty objects.                                      ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define-metafunction CommonLang
   cleanup-data : json (k ...) -> json
   [(cleanup-data atom (k_seen ...))
@@ -42,14 +63,12 @@
    (where ((k_2′ := json_2′) ...) (cleanup-data ((k_2 := json_2) ...) (k_seen ...)))])
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Generate an object in CommonLang that represents a      ;;
+;; valid array, i.e., an object where the keys are indices ;;
+;; (from 0 to size) and the values are the array's values. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Remove the last element of a list
-(define (remove-last l)
-  (if (empty? l)
-      '()
-      (drop-right l 1)))
-
-; Generate an object in CommonLang that represents a valid array, i.e., an object where the keys are indices (0 to size) and the values are the array's values
 (define (gen-array-object #:max-size [size 10] #:must-include-val [must-include (void)])
   (define (gen-atoms)
     (for/list ([i (in-range 1 size)])
@@ -66,7 +85,13 @@
   (member path paths))
 
 
-; Given a list of paths, a list of path selectors that represent read privileges, and a user environment needed by those path selectors, return the list of paths that match those path selectors for the given user environment.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Given a list of paths, a list of path selectors that       ;;
+;; represent read privileges, and a user environment needed   ;;
+;; by those path selectors, return the list of paths that     ;;
+;; match those path selectors for the given user environment. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (remove-readable-paths paths path-selectors user-env)
   (define (keep? path)
     (define (does-not-match? path path-selector)
@@ -74,7 +99,15 @@
     (andmap (curry does-not-match? path) path-selectors))
   (filter keep? paths))
 
-; Given a list of paths, a list of path selectors that represent read privileges, and a user environment needed by those path selectors, return the list of paths that *do not* match those path selectors for the given user environment.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Given a list of paths, a list of path selectors that     ;;
+;; represent read privileges, and a user environment needed ;;
+;; by those path selectors, return the list of paths that   ;;
+;; *do not* match those path selectors for the given user   ;;
+;; environment.                                             ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (remove-non-readable-paths paths path-expressions user-env)
   (define (keep? path)
     (define (matches? path path-expression)
@@ -82,18 +115,28 @@
     (ormap (curry matches? path) path-expressions))
   (filter keep? paths))
 
-; Given a list of paths, a list of privileges, and a user environment needed by those privileges, return the list of paths that are allowed to be written to according to the privileges and user environment.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Given a list of paths, a list of privileges, and a user environment   ;;
+;; needed by those privileges, return the list of paths that are allowed ;;
+;; to be written to according to the privileges and user environment.    ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (keep-writable-paths obj paths privileges user-env)
-  ;(displayln "keep-writable-paths: ") (displayln obj) (displayln paths) (displayln privileges) (displayln user-env) (newline)
   (define (keep? path)
     (term (is-writable ,obj ,path ,privileges ,user-env)))
   (filter keep? paths))
 
-; Given a list of provileges, a user environment, and a flat path, return whether the path is readable according to the given privileges and user environment
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Given a list of provileges, a user environment, and a   ;;
+;; flat path, return whether the path is readable          ;;
+;; according to the given privileges and user environment. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (is-readable-path? path-expressions user-env path)
-  ;(displayln "is-readable-path?: ") (displayln (pretty-format path-expressions)) (displayln user-env) (displayln path) (newline)
   (define (matches? path path-expression)
-      (term (matches-in-env ,path-expression ,path ,user-env)))
+    (term (matches-in-env ,path-expression ,path ,user-env)))
   (ormap (curry matches? path) path-expressions))
 
 
@@ -118,9 +161,8 @@
     (if should-unionify?
         (let* ((new-key (gensym))
                (full-new-path (append current-path (list new-key))))
-          ;(display obj) (newline) (display full-new-path) (newline) (display json) (newline)
           (set! obj (term (json-write-compound ,obj ,full-new-path ,json)))
-          (cons (union-candidate current-path full-old-path (term [⋃ ,key ,new-key]))
+          (cons (union-candidate current-path full-old-path (term [∪ ,key ,new-key]))
                 (unionify! full-old-path json)))
         unionified-children))
           
@@ -140,20 +182,24 @@
   (report "union-candidates" union-candidates)
   (values union-candidates obj))
 
-; "mutate-paths" arguments
-;   - paths: the list of paths to potentially mutate
-; keyword arguments:
-;   - #:path-segment-wildcard-chance: the chance (in percent) to put a wildcard in any particular path segment of a path.
-;                                     All path segments of a path are considered and individually subject to this chance.
-;   - #:make-unreadable-percent: the chance (in percent) that, when a mutation occurs,
-;                                the path becomes unreadable by not including the required field in the user environment
-; "mutate-paths" return values:
-;   - path-selectors: all paths that potentially contain wildcards
-;   - user-environment: the user environment which does or does not include the necessary fields to gain access to a path
-;   - paths-made-unreadable: list of field access paths that were made unreadable though random chance, e.g.,
-;                            because the mutation (= of ∈) did not include the necessary field in the user's env
-;   - flat-path-suggestions: a list of flat paths that didn't exist in the object, but that now exist due to
-;                            the introduction of path expressions
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; "mutate-paths" arguments                                                                                                ;;
+;;   - paths: the list of paths to potentially mutate                                                                      ;;
+;; keyword arguments:                                                                                                      ;;
+;;   - #:path-segment-wildcard-chance: the chance (in percent) to put a wildcard in any particular path segment of a path. ;;
+;;                                     All path segments of a path are considered and individually subject to this chance. ;;
+;;   - #:make-unreadable-percent: the chance (in percent) that, when a mutation occurs,                                    ;;
+;;                                the path becomes unreadable by not including the required field in the user environment  ;;
+;; "mutate-paths" return values:                                                                                           ;;
+;;   - path-selectors: all paths that potentially contain wildcards                                                        ;;
+;;   - user-environment: the user environment which does or does not include the necessary fields to gain access to a path ;;
+;;   - paths-made-unreadable: list of field access paths that were made unreadable though random chance, e.g.,             ;;
+;;                            because the mutation (= of ∈) did not include the necessary field in the user's env          ;;
+;;   - flat-path-suggestions: a list of flat paths that didn't exist in the object, but that now exist due to              ;;
+;;                            the introduction of path expressions                                                         ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (expressionify-paths paths union-candidates
                              #:path-segment-wildcard-chance [wildcard-chance 10]
                              #:make-unreadable-percent [unreadable-percent 20]
@@ -242,10 +288,8 @@
           (let ((union-candidate (findf (lambda (union-candidate)
                                           (list-prefix? (union-candidate-path-full union-candidate) path))
                                         union-candidates)))
-            ;(display "UNION CANDIDATE ") (display union-candidate) (newline)
             (if union-candidate
                 (let ((result (list-set path (length (union-candidate-path-prefix union-candidate)) (union-candidate-path-expression union-candidate))))
-                  ;(display "replacing path ") (display path) (display " with ") (display result) (newline)
                   result)
                 path))
           path))
@@ -266,18 +310,23 @@
   (define path-selectors (map path->path-selector paths))
   (values path-selectors user-environment paths-made-unreadable flat-path-suggestions))
 
-  
 
-; generate an object whose size is bounded by the given a particular depth.
-; the depth is defined by Redex as the size of the parse tree
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Generate an object whose size is bounded by the given a particular  ;;
+;; depth. The depth is defined by Redex as the size of the parse tree. ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (generate-object #:depth [depth 4])
-  ;; generate objects
   (define dirty-obj (generate-term CommonLang d depth))
   (define obj (term (cleanup-data ,dirty-obj ())))
   obj)
 
 
-; returns all possible field access paths of an object from the root object to leaves (fields that contain plain data, i.e., atoms)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Returns all possible field access paths of an object from the root ;;
+;; object to leaves (fields that contain plain data, i.e., atoms).    ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (get-all-paths object)
   (term (data-to-paths ,object)))
 
@@ -377,7 +426,7 @@
 
   
   (define (test-programs paths property?)
-    (define replica-name (gensym))
+    (define replica-name (symbol->string (gensym)))
     (define all-read-expressions
       (for/list ([path paths])
         (path->read-expression replica-name path)))
@@ -385,15 +434,12 @@
     (define all-programs
       (for/list ([expr all-read-expressions])
         (generate-program replica-name '() projected-obj '() expr)))
-    ;(display "all-programs: ") (displayln all-programs)
-
+    
     (for/list ([program all-programs])
-      ;(display "checking: ") (displayln program)
       (define reduction-results
 
 
         (apply-reduction-relation* red-replica program))
-      ;(display "==> reduced to: ") (displayln reduction-results)
       (unless (and (= 1 (length reduction-results))
                    (property? (first reduction-results)))
         (error (string-append "counterexample found: ") program reduction-results)))
@@ -422,9 +468,7 @@
   (test-programs nonreadable-paths is-error?)
 
   (displayln "### --- testing programs with randomly generated paths --- ###")
-  (test-programs random-generated-paths is-value-or-error?)
-  
-  )
+  (test-programs random-generated-paths is-value-or-error?))
 
 
 
@@ -449,6 +493,7 @@
 
   (define selected-paths (random-sample all-paths (round (* (length all-paths) 2/3))))
 
+  
   ;;;;;;;;;;;;;;;;;;;;;
   ;; Role generation ;;
   ;;;;;;;;;;;;;;;;;;;;;
@@ -464,7 +509,6 @@
   ;; Privilege generation ;;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  ;(define privileges (map (lambda (path) (term (ALLOW ,role ,(generate-term CommonLang )path role))) readable-paths))
   (struct role (readable-path-selectors writable-path-selectors writable-path-suggestions [user-environment #:mutable])
     #:methods gen:custom-write
     [(define write-proc
@@ -481,8 +525,7 @@
                    (define user-environment (append read-env write-env))
                    (cons role-name (role readable-path-selectors writable-path-selectors writable-path-suggestions user-environment)))))
   (define roles-without-wildcard (hash-remove roles wildcard-role))
-  ;(display "roles: ") (pretty-print roles)
-
+  
   ; add the user environment of the wildcard role to the environment of all other roles
   (define wildcard-user-env (role-user-environment (hash-ref roles wildcard-role)))
   (hash-for-each roles (lambda (role-name obj)
@@ -537,8 +580,8 @@
                      (report (string-append role-name-str ": readable-paths") readable-paths)
                      (report (string-append role-name-str ": writable-paths") writable-paths)
                      (values role-name (paths non-readable-paths strictly-readable-paths writable-paths)))))
-  ;(report "flat paths per role (non-readable, strictly readable, writable)" paths-per-role)
 
+  
   ;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; Privilege projection ;;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -586,24 +629,15 @@
 
   
   (define (test-programs programs property?)
-    ;(display "all-programs: ") (displayln all-programs)
-
     (for/list ([program programs])
-      ;(display "checking: ") (pretty-print program)
       (define reduction-results (apply-reduction-relation* leader-request-red-rel program))
-      ;(display "==> reduced to: ") (pretty-print reduction-results)
       (unless (property? reduction-results)
         (report "tested program: " program)
         (report "reduction results: " reduction-results)
         (error (string-append "counterexample found: ") program reduction-results))))
 
  
-  #;(define requests (for/list ([i (in-range 1 (hash-count roles))])
-                       `(GET-REPLICA ,(format "SESSION#~a" i))))
-
   (define (get-user-from-session s-id)
-    ;(report "s-id" s-id)
-    ;(report "(hash-values users)" (hash-values users))
     (car (memf (lambda (user) (equal? (user-sid user) s-id)) (hash-values users))))
 
   (define (get-session-term user)
@@ -626,12 +660,7 @@
       (define all-privileges (get-privileges-for-role privileges-per-role role-name))
       (define path-selectors-that-can-be-read (map last all-privileges))
 
-      ;(define role-paths (hash-ref paths-per-role role))
-      ;(define allowed-read-paths (paths-strictly-readable role-paths))
-      ;(define allowed-write-paths (paths-writable role-paths))
-      #;(or (member path-written allowed-write-paths)
-          (member path-written allowed-read-paths))
-      (define is-allowed? (is-readable-path? path-selectors-that-can-be-read user-environment path-written))
+     (define is-allowed? (is-readable-path? path-selectors-that-can-be-read user-environment path-written))
       (display "checking if delta is allowed: ") (display delta) (display " ==> ") (displayln is-allowed?)
       is-allowed?)
     (define deltas (last response))
@@ -639,7 +668,6 @@
   
   (define (is-accepted? reduction-result)
     (define responses (get-LeaderLang-response reduction-result))
-    ;(display "checking response: ") (pretty-print responses)
     (and (= (length responses) 1)
          (let ((response (first responses)))
            (and (redex-match? LeaderLang (ACCEPT (action ...)) response)
@@ -657,7 +685,6 @@
     (define new-value (generate-term CommonLang atom 1))
     (define delta (term (! ,path ,new-value)))
     (term (PUSH-Δ ,s-id ,delta)))
-
 
 
   (hash-for-each
@@ -678,8 +705,7 @@
      (define disallowed-write-programs1 (generate-programs non-readable-paths))
      (define disallowed-write-programs2 (generate-programs strictly-readable-paths))    
      (define allowed-write-programs (generate-programs writable-paths))
-     ;(report (format "allowed write programs for user ~a" (user-uid user)) allowed-write-programs)
-
+     
      (test-programs (append disallowed-write-programs1 disallowed-write-programs2) is-rejected?)
      (test-programs allowed-write-programs is-accepted?)
 
@@ -721,18 +747,22 @@
 (define (print-all-covered-cases)
   (for-each (lambda (coverage) (pretty-print (covered-cases coverage))) (relation-coverage)))
 
-(define max-attempts 1000)
-#;(for ([i (in-range 0 (+ max-attempts 1))])
-  (displayln (string-append "### --- attempt " (number->string i) " --- ###"))
-  (execute-read-tests #:object-depth 6))
 
-
-(for ([i (in-range 0 (+ max-attempts 1))])
+(define (run-read-tests max-attempts #:complexity [complexity 6])
+  (for ([i (in-range 0 (+ max-attempts 1))])
     (displayln (string-append "### --- attempt " (number->string i) " --- ###"))
-    (execute-write-tests #:object-depth 5))
+    (execute-read-tests #:object-depth complexity))
+  (print-all-covered-cases)
+  (displayln "OK"))
 
-(print-all-covered-cases)
-(displayln "OK")
+
+(define (run-write-tests max-attempts #:complexity [complexity 5])
+  (for ([i (in-range 0 (+ max-attempts 1))])
+    (displayln (string-append "### --- attempt " (number->string i) " --- ###"))
+    (execute-write-tests #:object-depth complexity))
+  (print-all-covered-cases)
+  (displayln "OK"))
+
 
 
   
